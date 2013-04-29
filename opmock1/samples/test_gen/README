@@ -1,0 +1,7 @@
+This build lacks a main startup file and registration of tests.
+Run the following command:
+
+>refresh_tests.sh fizzbuzz_test.c fizzbuzz_test2.c
+
+To generate C and header files registering automatically all tests in your files.
+Of course, the refresh_tests.sh script must be in your PATH.

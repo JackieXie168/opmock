@@ -1,0 +1,896 @@
+test for checkin
+
+/*
+code to dispatch calls to variadic functions
+
+1) don't generate the mock, expect and return, ... for variadic functions
+but I can use a callback function
+however the callback function has to use the va_* macros to retrieve the lists
+of arguments
+by default If i don't define any callback : I could provide a default implementation
+returning a default value (if it returns void, has no side effects)
+should however setup the callback?
+
+
+
+
+void mysprintf(char* out, const char* fmt, va_list args)
+{
+  // ... do something here
+}
+
+
+void log_DEBUG(const char* fmt, ...) {
+   char buff[SOME_PROPER_LENGTH];
+   va_list args;
+   va_start(args, fmt);
+   mysprintf(buff, fmt, args);
+   va_end(args);
+   log(DEBUG, buff);
+}
+
+*/
+
+
+
+
+//TODO reste a faire pour C:
+//les options habituelles
+//pour exclure/inclure des fonctions
+//egalement voir si je peux traiter les varargs
+
+
+#include <iostream>
+#include <fstream>
+#include <algorithm>
+
+#include "llvm/Support/Host.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include "clang/Frontend/CompilerInstance.h"
+#include "clang/Basic/TargetOptions.h"
+#include "clang/Basic/TargetInfo.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/SourceManager.h"
+#include "clang/Basic/Version.h"
+#include "clang/Lex/Preprocessor.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/ASTConsumer.h"
+#include "clang/AST/ASTContext.h"
+
+#include "clang/Parse/ParseAST.h"
+#include "clang/Frontend/HeaderSearchOptions.h"
+#include "clang/Frontend/Utils.h"
+
+
+#include <cstring>
+#include <cstdio>
+#include <ctype.h>
+
+#include "opmock2.hpp"
+
+//global for the main file id. See if i can remove that in some way
+void writeHeaderForC ( std::vector<clang::FunctionDecl *> functionList,
+                       std::string &output, std::string &input_file );
+std::string SplitFilename ( const std::string &str );
+std::string SplitPath ( const std::string &str );
+std::string removeExt ( std::string &str );
+void cleanPath ( std::string &str );
+bool returnValueAsAString ( clang::FunctionDecl *fdecl,
+                            std::string &retPrefix,
+                            std::string &retSuffix,
+                            bool useCanonical );
+void paramAsString ( clang::ParmVarDecl *pdecl, std::string &prefix, std::string &suffix,
+                     bool useCanonical );
+
+void replaceAll ( std::string &str, const std::string &from, const std::string &to );
+std::string string_replace ( std::string src, std::string const &target, std::string const &repl );
+
+bool isFunctionVoid ( clang::FunctionDecl *f );
+
+class MyRecursiveASTVisitor
+    : public clang::RecursiveASTVisitor<MyRecursiveASTVisitor>
+{
+
+public:
+    bool VisitDecl ( clang::Decl *d );
+    std::vector<clang::FunctionDecl *> functionList;
+    clang::ASTContext *ast;
+private:
+};
+
+bool MyRecursiveASTVisitor::VisitDecl ( clang::Decl *d )
+{
+    /*llvm::errs() << "Visiting decl : "
+                 << d->getDeclKindName() << "\n";
+    utile pour retrouver les types
+    */
+
+//CXXRecordDecl est le type pour classe/struct/union
+    if ( d->getKind() == clang::Decl::Function )
+    {
+        clang::SourceLocation loc = d->getLocation();
+        if ( ast->getSourceManager().isFromMainFile ( loc ) )
+        {
+            clang::FunctionDecl *fdecl =
+                clang::dyn_cast<clang::FunctionDecl> ( d );
+            functionList.push_back ( fdecl );
+
+//TODO pour les options C++
+//CompilerInvocation::setLangDefaults(languageOptions, IK_CXX);
+        }
+
+//ceci peut etre remplacé par un iterateur sur les parametres
+//pour moquer des varargs je vais avoir besoin d'une structure avec
+//allocation de memoire dynamique et stocker les differents types possibles
+//avec des sous allocations?
+        else if ( d->getKind() == clang::Decl::ParmVar )
+        {
+            clang::ParmVarDecl *pdecl = clang::dyn_cast<clang::ParmVarDecl> ( d );
+//index du parametre, utile pour generer des noms synthetiques
+//unsigned clang::ParmVarDecl::getFunctionScopeIndex    (       )   const
+            clang::QualType parmType = pdecl->getType();
+            std::string sparmType = parmType.getAsString();
+            //std::cout << "type parametre : " << sparmType << std::endl;
+
+//ok getOriginalType me donne le nom du typedef plutot que le type réel
+            parmType = pdecl->getOriginalType();
+            sparmType = parmType.getAsString();
+            //std::cout << "type original parametre : " << sparmType << std::endl;
+
+        }
+    }
+
+    return true;
+}
+
+class MyASTConsumer : public clang::ASTConsumer
+{
+public:
+    virtual bool HandleTopLevelDecl ( clang::DeclGroupRef d );
+    MyASTConsumer ( clang::ASTContext *ast );
+    MyRecursiveASTVisitor rv;
+private:
+    clang::ASTContext *astContext;
+};
+
+MyASTConsumer::MyASTConsumer ( clang::ASTContext *ast )
+{
+    astContext = ast;
+}
+
+
+bool MyASTConsumer::HandleTopLevelDecl ( clang::DeclGroupRef d )
+{
+    //MyRecursiveASTVisitor rv ( astContext );
+    rv.ast = astContext;
+    typedef clang::DeclGroupRef::iterator iter;
+    for ( iter b = d.begin(), e = d.end(); b != e; ++b )
+    {
+        rv.TraverseDecl ( *b );
+    }
+    return true;
+}
+
+
+int main ( int argc, char **argv )
+{
+    using clang::CompilerInstance;
+    using clang::TargetOptions;
+    using clang::TargetInfo;
+    using clang::FileEntry;
+    using clang::HeaderSearchOptions;
+
+    std::vector<std::string> includeList;
+    std::vector<std::string> macroList;
+    std::string inputFile;
+    std::string outputPath;
+
+    // parse command line options
+    for ( int i = 1; i < argc; i++ )
+    {
+        // include definition
+        if ( strncmp ( argv[i], "-I", 2 ) == 0 )
+        {
+            includeList.push_back ( argv[i] + 2 );
+        }
+        // macro definition
+        else if ( strncmp ( argv[i], "-D", 2 ) == 0 )
+        {
+            macroList.push_back ( argv[i] + 2 );
+        }
+        //input header
+        else if ( strcmp ( argv[i], "-i" ) == 0 )
+        {
+            inputFile = argv[i + 1];
+        }
+        // output path
+        else if ( strcmp ( argv[i], "-o" ) == 0 )
+        {
+            outputPath = argv[i + 1];
+        }
+
+    }
+
+//pascal creer mes propres options
+    /*  clang::LangOptions languageOptions;
+        languageOptions.GNUMode = 1;
+        languageOptions.CXXExceptions = 1;
+        languageOptions.RTTI = 1;
+        languageOptions.Bool = 1;
+        languageOptions.CPlusPlus = 1;
+    */
+    CompilerInstance ci;
+
+//C code for now
+//ci.getLangOpts().CPlusPlus = 1;
+//ci.getLangOpts().Bool = 1;
+
+    ci.createDiagnostics ( 0, NULL );
+
+    TargetOptions to;
+    to.Triple = llvm::sys::getDefaultTargetTriple();
+    TargetInfo *pti = TargetInfo::CreateTargetInfo ( ci.getDiagnostics(), to );
+    ci.setTarget ( pti );
+
+    ci.createFileManager();
+    ci.createSourceManager ( ci.getFileManager() );
+    ci.createPreprocessor();
+
+    HeaderSearchOptions headerSearchOptions;
+    for ( std::vector<std::string>::iterator it = includeList.begin(); it != includeList.end(); ++it )
+    {
+        headerSearchOptions.AddPath ( *it,
+                                      clang::frontend::Angled,
+                                      false,
+                                      false,
+                                      false );
+    }
+
+    clang::PreprocessorOptions &ppOptions = ci.getPreprocessorOpts ();
+    for ( std::vector<std::string>::iterator it = macroList.begin(); it != macroList.end(); ++it )
+    {
+        ppOptions.addMacroDef ( *it );
+    }
+
+    clang::InitializePreprocessor ( ci.getPreprocessor(),
+                                    ci.getPreprocessorOpts(),
+                                    headerSearchOptions,
+                                    ci.getFrontendOpts() );
+    ci.createASTContext();
+
+    MyASTConsumer *astConsumer = new MyASTConsumer ( &ci.getASTContext() );
+    ci.setASTConsumer ( astConsumer );
+
+    const FileEntry *pFile = ci.getFileManager().getFile ( inputFile );
+    ci.getSourceManager().createMainFileID ( pFile );
+    ci.getDiagnosticClient().BeginSourceFile ( ci.getLangOpts(),
+            &ci.getPreprocessor() );
+    clang::ParseAST ( ci.getPreprocessor(), astConsumer, ci.getASTContext() );
+    ci.getDiagnosticClient().EndSourceFile();
+
+    // write the header file for the mock
+    writeHeaderForC ( astConsumer->rv.functionList,
+                      outputPath,
+                      inputFile );
+    return 0;
+}
+
+struct my_toupper
+{
+    char operator() ( char c ) const
+    {
+        return std::toupper ( static_cast<unsigned char> ( c ) );
+    }
+};
+
+void writeHeaderForC ( std::vector<clang::FunctionDecl *> functionList,
+                       std::string &output, std::string &input_file )
+{
+    std::string filename = SplitFilename ( input_file );
+    std::string header_guard = filename;
+    std::replace ( header_guard.begin(), header_guard.end(), '.', '_' );
+    header_guard.insert ( 0, "_" );
+    std::transform ( header_guard.begin(), header_guard.end(), header_guard.begin(), my_toupper() );
+
+    std::string cfile = removeExt ( filename );
+    cfile.append ( "_stub.c" );
+    std::string hfile = removeExt ( filename );
+    hfile.append ( "_stub.h" );
+
+    cleanPath ( output );
+    cfile.insert ( 0, output );
+    hfile.insert ( 0, output );
+
+    // generate header file
+    std::ofstream hout;
+    hout.open ( hfile.c_str() );
+    hout << "/* OPMOCK2 GENERATED CODE - DO NOT MODIFY */\n";
+    hout << "#ifndef " << header_guard << std::endl;
+    hout << "#define " << header_guard << "\n\n";
+    hout << "#include \"" << filename << "\"\n";//TODO change header prefix cmd line
+    hout << "#include \"opmock2.h\"\n\n";
+    hout << "#ifdef __cplusplus\n";
+    hout << "extern \"C\" {\n";
+    hout << "#endif\n\n";
+
+    // generate C file with structs and functions bodies
+    // in the same loop
+    std::ofstream outc;
+    outc.open ( cfile.c_str() );
+    outc << "/* OPMOCK2 GENERATED CODE - DO NOT MODIFY */\n";
+    outc << "#include \"" << removeExt ( filename ) + "_stub.h" << "\"\n";
+    outc << "#include <stdio.h>\n";
+    outc << "#include <string.h>\n\n";
+
+    std::string bodies_string;
+    std::string reset_all_body;
+    std::string verify_all_body;
+    reset_all_body = "static void opmock_reset_all_mocks_in_this_header()\n{\n";
+    verify_all_body = "static void opmock_verify_all_mocks_in_this_header()\n{\n";
+
+
+    // list of prototypes for expect and return
+    for ( std::vector<clang::FunctionDecl *>::iterator it = functionList.begin();
+            it != functionList.end(); ++it )
+    {
+        // function name
+        clang::FunctionDecl *fdecl = *it;
+        std::string fname = fdecl->getNameAsString();
+        if ( fdecl->isVariadic() )
+        {
+            std::cout << "WARNING " << fname << " is variadic, skipped\n";
+        }
+        else
+        {
+            // return value
+            std::string retPrefix, retSuffix;
+            std::string canonRetPrefix, canonRetSuffix;
+            bool isFuncPtr = returnValueAsAString ( fdecl, retPrefix, retSuffix, false );
+            bool isCanonFuncPtr = returnValueAsAString ( fdecl, canonRetPrefix, canonRetSuffix, true );
+            bool isVoid = isFunctionVoid ( fdecl );
+
+            // parameters and matchers
+            std::string paramsStart;
+            std::string paramsNames;
+            std::string matchersStart;
+            std::string paramsStruct;
+            std::string matchersStruct;
+            std::string matchersList;
+            std::string assignList;
+
+            paramsStart = "(";
+            unsigned nbParam = fdecl->getNumParams();
+            for ( unsigned i = 0; i < nbParam; i++ )
+            {
+                clang::ParmVarDecl *pdecl = fdecl->getParamDecl ( i );
+                std::string name = pdecl->getNameAsString();
+
+                // cope with anonymous parameters
+                if ( name.size() == 0 )
+                {
+                    char argbuffer[100];
+                    sprintf ( argbuffer, "arg%d", i + 1 );
+                    name = argbuffer;
+                }
+
+                paramsNames += name;
+                if ( i < nbParam - 1 )
+                {
+                    paramsNames += ", ";
+                }
+
+                // update  list of matchers for mock impl
+                matchersList += "        if(" + fname + "_struct_inst.calls[0].match_"
+                                + name + ") {\n";
+                matchersList += "            void * val1 = (void *) &" + fname
+                                + "_struct_inst.calls[0]." + name + ";\n";
+                matchersList += "            void * val2 = (void *) &" + name + ";\n";
+                matchersList += "            int match_result = " + fname
+                                + "_struct_inst.calls[0].match_" + name
+                                + "(val1, val2, \"" + name + "\", get_matcher_message());\n";
+                matchersList += "            if(match_result){\n";
+                matchersList += "                char buffer[OP_ERROR_MESSAGE_LENGTH];\n";
+                matchersList += "                snprintf(buffer, OP_ERROR_MESSAGE_LENGTH, \"WARNING : on call number %d of '" + fname + "', %s\"," + fname
+                                + "_struct_inst.actualCalls, get_matcher_message());\n";
+                matchersList += "                opmock_add_error_message((char *) buffer);\n";
+                matchersList += "            }\n";
+                matchersList += "        }\n";
+
+
+                std::string parmPrefix, parmSuffix;
+                std::string canonParmPrefix, canonParmSuffix;
+                paramAsString ( pdecl, parmPrefix, parmSuffix, false );
+                paramAsString ( pdecl, canonParmPrefix, canonParmSuffix, true );
+
+                paramsStart += ( parmPrefix + " " + name );
+
+                if ( parmSuffix.size() > 0 )
+                {
+                    paramsStart += ( " " + parmSuffix );
+                }
+                if ( i < nbParam - 1 )
+                {
+                    paramsStart += ", ";
+                }
+
+                // update struct parameters list
+                // store the canonical type
+                paramsStruct += "    " + canonParmPrefix + " " + name;
+                if ( canonParmSuffix.size() > 0 )
+                {
+                    paramsStruct += canonParmSuffix;
+                }
+                paramsStruct += ";\n";
+
+                // update struct matchers list
+                matchersStruct += "    OPMOCK_MATCHER match_" + name + ";\n";
+
+                // update matcher list
+                matchersStart += ", OPMOCK_MATCHER m_" + name;
+
+                // update list of parameters assignment in a mock
+                assignList += "    " + fname + "_struct_inst.calls["
+                              + fname + "_struct_inst.expectedCalls]."
+                              + name + " = ("; 	
+		std::string parm_no_const = canonParmPrefix + canonParmSuffix;
+		replaceAll(parm_no_const, "const", "");
+		replaceAll(parm_no_const, "volatile", "");
+		assignList += parm_no_const;
+		assignList += ")" + name + ";\n";
+            }
+
+            // output the call struct
+            // remove any const from the attributes
+            outc << "typedef struct\n{\n";
+            std::string pattern = "const";
+            std::string replaceBy = "";
+            replaceAll ( paramsStruct, pattern, replaceBy );
+            pattern = "volatile";
+            replaceAll ( paramsStruct, pattern, replaceBy );
+
+            outc << paramsStruct;
+            outc << matchersStruct;
+
+            // return value if there's one, with *canonical* type
+            if ( !isVoid )
+            {
+		// if the return value is const, I need to remove the "constness"
+		std::string retPrefixNoConst = canonRetPrefix;
+		replaceAll(retPrefixNoConst, "const", "");
+		replaceAll(retPrefixNoConst, "volatile", "");
+
+                outc << "    " << retPrefixNoConst << " to_return";
+                if ( canonRetSuffix.size() > 0 )
+                {
+                    outc << " " << canonRetSuffix;
+                }
+                outc << ";\n";
+            }
+
+            outc << "    char check_params;\n";
+            outc << "} " << fname << "_call;\n\n";
+
+            // struct for the call stack
+            outc << "typedef struct\n{\n";
+            outc << "    int expectedCalls;\n";
+            outc << "    int actualCalls;\n";
+            outc << "    OPMOCK_" << fname << "_CALLBACK callback;\n";
+            outc << "    " << fname << "_call calls[MAX_FUNC_CALL];\n";
+            outc << "} " << fname << "_struct;\n\n";
+
+            // static struct array for calls
+            outc << "static " << fname << "_struct " << fname << "_struct_inst;\n\n";
+
+            /*
+             * functions bodies
+             */
+
+            // function to reset all mocks in this header
+            reset_all_body += "    " + fname + "_MockReset();\n";
+
+            // function to verify all mocks in this header
+            verify_all_body += "    " + fname + "_VerifyMock();\n";
+
+            // mock implementation
+            std::string signature;
+            signature = retPrefix + " " + fname + paramsStart + ")" + retSuffix;
+            bodies_string += signature + "\n{\n";
+
+            if ( !isVoid )
+            {
+                bodies_string += "    " + retPrefix + " default_res";
+                if ( retSuffix.size() > 0 )
+                {
+                    bodies_string += " ";
+                }
+                bodies_string += retSuffix + " = " + fname 
+				+ "_struct_inst.calls[0].return_value;\n";
+            }
+
+            bodies_string += "    int opmock_i;\n";
+            bodies_string += "    " + fname + "_struct_inst.actualCalls++;\n\n";
+
+            bodies_string += "    if (" + fname + "_struct_inst.callback != NULL)\n";
+            bodies_string += "    {\n";
+            bodies_string += "        ";
+
+            if ( !isVoid )
+            {
+                bodies_string += "return ";
+            }
+            bodies_string += fname + "_struct_inst.callback (";
+            bodies_string += paramsNames;
+            if ( nbParam > 0 )
+            {
+                bodies_string += ", ";
+            }
+            bodies_string += fname + "_struct_inst.actualCalls);\n";
+            bodies_string += "    }\n";
+
+            // expected calls
+            bodies_string += "    if (" + fname + "_struct_inst.expectedCalls == 0)\n";
+            bodies_string += "    {\n";
+            bodies_string += "        opmock_add_error_message((char *) \"WARNING : unexpected call of '" + fname + "', returning random value.\");\n";
+            if ( !isVoid )
+            {
+                bodies_string += "        return default_res;\n";
+            }
+            bodies_string += "    }\n\n";
+
+            bodies_string += "    if(strcmp(opmock_get_current_call(), \"" +
+                             retPrefix + " " + fname + paramsStart
+                             +  ")" + retSuffix + "\") != 0) {\n";
+            bodies_string += "        char buffer[OP_ERROR_MESSAGE_LENGTH];\n";
+            bodies_string += "        snprintf(buffer, OP_ERROR_MESSAGE_LENGTH, \"WARNING : got call to '"
+                             + retPrefix + " " + fname
+                             + paramsStart + ")" + retSuffix
+                             + "',  but was expecting call to '%s'\", opmock_get_current_call());\n";
+            bodies_string += "        opmock_add_error_message(buffer);\n";
+            bodies_string += "    }\n";
+            bodies_string += "    opmock_pop_call();\n\n";
+
+            bodies_string += "    if (do_sound_struct_inst.calls[0].check_params == 1) {\n";
+            bodies_string += matchersList;
+            bodies_string += "    }\n\n";
+
+            bodies_string += "    for(opmock_i = 1; opmock_i < " + fname
+                             + "_struct_inst.expectedCalls; opmock_i++) {\n";
+            bodies_string += "        " + fname + "_struct_inst.calls[opmock_i - 1] = "
+                             + fname + "_struct_inst.calls[opmock_i];\n";
+            bodies_string += "    }\n\n";
+
+            bodies_string += "    " + fname + "_struct_inst.expectedCalls--;\n";
+            if ( !isVoid )
+            {
+                bodies_string += "    return default_res;\n";
+            }
+            bodies_string += "}\n\n";
+
+            // mock reset implementation
+            bodies_string +=  "void " + fname + "_MockReset()\n{\n";
+            bodies_string += "    " + fname + "_struct_inst.expectedCalls = 0;\n";
+            bodies_string += "    " + fname + "_struct_inst.actualCalls = 0;\n";
+            bodies_string += "    " + fname + "_struct_inst.callback = NULL;\n";
+            bodies_string += "}\n\n";
+
+            // mock callback implementation
+            bodies_string += "void " + fname + "_MockWithCallback(OPMOCK_" + fname +
+                             "_CALLBACK callback)\n{\n";
+            bodies_string += "    opmock_add_reset_callback(opmock_reset_all_mocks_in_this_header);\n";
+            bodies_string += "    opmock_add_verify_callback(opmock_verify_all_mocks_in_this_header);\n";
+            bodies_string += "    " + fname + "_struct_inst.callback = callback;\n";
+            bodies_string += "    " + fname + "_struct_inst.expectedCalls = 0;\n";
+            bodies_string += "    " + fname + "_struct_inst.actualCalls = 0;\n";
+            bodies_string +=  "}\n\n";
+
+            // mock verify implementation
+            bodies_string += "void " + fname + "_VerifyMock()\n{\n";
+            bodies_string += "    if (" + fname + "_struct_inst.expectedCalls != 0) {\n";
+            bodies_string += "        char buffer[OP_ERROR_MESSAGE_LENGTH];\n";
+            bodies_string += "        snprintf(buffer, OP_ERROR_MESSAGE_LENGTH, \"WARNING : Bad number of calls (%d) for '"
+                             + fname + "'\"," + fname + "_struct_inst.actualCalls);\n";
+            bodies_string += "        opmock_add_error_message((char *) buffer);\n";
+            bodies_string += "    }\n";
+            bodies_string += "}\n\n";
+
+            // mock expect and return implementation
+            bodies_string += "void " + fname + "_ExpectAndReturn " + paramsStart;
+            if ( !isVoid )
+            {
+                if ( nbParam > 0 )
+                {
+                    bodies_string += ", ";
+                }
+                bodies_string += retPrefix + " to_return";
+                if ( retSuffix.size() > 0 )
+                {
+                    bodies_string += " " + retSuffix;
+                }
+                if ( nbParam > 0 )
+                {
+                    bodies_string += matchersStart;
+                }
+            }
+            bodies_string += ")\n{\n";
+            bodies_string += "    if(" + fname + "_struct_inst.callback != NULL)\n";
+            bodies_string += "    {\n";
+            bodies_string += "        " + fname + "_MockReset ();\n";
+            bodies_string += "    }\n\n";
+
+            bodies_string += "    if("
+                             + fname + "_struct_inst.expectedCalls >= MAX_FUNC_CALL)\n";
+            bodies_string += "    {\n";
+            bodies_string += "        printf(\"WARNING : aborting "
+                             + fname + "_ExpectAndReturn, call stack overload.\");\n";
+            bodies_string += "        return;\n";
+            bodies_string += "    }\n\n";
+
+            bodies_string += "    opmock_add_reset_callback(opmock_reset_all_mocks_in_this_header);\n";
+            bodies_string += "    opmock_add_verify_callback(opmock_verify_all_mocks_in_this_header);\n";
+            bodies_string += "    opmock_add_call((char *)\""
+                             + retPrefix + " " + fname + " " + paramsStart + ")" + retSuffix + "\");\n";
+
+            // copy parameters
+            bodies_string += assignList;
+
+            // return value
+            if ( !isVoid )
+            {
+                bodies_string += "    " + fname + "_struct_inst.calls["
+                                 + fname + "_struct_inst.expectedCalls].return_value = ";
+		bodies_string += "(";
+		std::string cast_string = canonRetPrefix + canonRetSuffix;
+		replaceAll(cast_string, "const", "");
+		replaceAll(cast_string, "volatile", "");
+		bodies_string += cast_string;
+                bodies_string += ") to_return;\n";
+            }
+
+            bodies_string += "    " + fname + "_struct_inst.calls["
+                             + fname + "_struct_inst.expectedCalls].check_params = 1;\n";
+            bodies_string += "    " + fname + "_struct_inst.expectedCalls++;\n";
+            bodies_string += "}\n\n";
+
+
+            /*
+             * header output
+             */
+
+            // output expect and return function in the header
+            hout << "void" << " " << fname << "_ExpectAndReturn";
+
+            hout << paramsStart;
+
+            // return value if there's one
+            // if the return value is a function pointer there's
+            // additional trickery
+            if ( isFuncPtr )
+            {
+                if ( nbParam > 0 )
+                {
+                    hout << ", ";
+                }
+                hout << retPrefix << " to_return " << retSuffix;
+            }
+            else if ( retPrefix != "void" )
+            {
+                if ( nbParam > 0 )
+                {
+                    hout << ", ";
+                }
+                hout << retPrefix << " to_return";
+            }
+
+            // matchers
+            hout << matchersStart;
+
+            hout << ")";
+            hout << ";" << std::endl;
+
+            // output reset function
+            hout << "void " << fname << "_MockReset();\n";
+
+            // output callback typedef
+            hout << "typedef " << retPrefix << " (* OPMOCK_" << fname << "_CALLBACK)" << paramsStart;
+            if ( nbParam > 0 )
+            {
+                hout << ", ";
+            }
+            hout << "int calls)" << retSuffix;
+            hout << ";\n";
+
+            // output callback prototype
+            hout << "void " << fname << "_MockWithCallback(OPMOCK_" << fname << "_CALLBACK);\n";
+
+            // output verify function
+            hout << "void " << fname << "_VerifyMock();\n";
+        }
+    }
+
+    hout << "\n#ifdef __cplusplus\n";
+    hout << "}\n#endif\n#endif\n";
+
+    hout.close();
+
+    outc << reset_all_body << "}\n\n";
+    outc << verify_all_body << "}\n\n";
+    outc << bodies_string;
+
+    outc.close();
+
+}
+
+std::string SplitFilename ( const std::string &str )
+{
+    size_t found;
+    found = str.find_last_of ( "/\\" );
+    return str.substr ( found + 1 );
+}
+
+std::string SplitPath ( const std::string &str )
+{
+    size_t found;
+    found = str.find_last_of ( "/\\" );
+    return str.substr ( 0, found );
+}
+
+std::string removeExt ( std::string &str )
+{
+    size_t found;
+    found = str.find_last_of ( "." );
+    return str.substr ( 0, found );
+}
+
+void cleanPath ( std::string &str )
+{
+    //check if the path ends with a path separator
+    //if not add it
+//TODO platform independence
+    if ( str[str.length() - 1] != '/' )
+    {
+        str.append ( "/" );
+    }
+}
+
+void paramAsString ( clang::ParmVarDecl *pdecl, std::string &prefix, std::string &suffix,
+                     bool useCanonical )
+{
+    clang::QualType parmType = pdecl->getOriginalType();
+    std::string sparmType = parmType.getAsString();
+
+    if ( useCanonical )
+    {
+        clang::QualType canonParmtype = parmType.getCanonicalType();
+        sparmType = canonParmtype.getAsString();
+    }
+    const clang::Type *realType =  parmType.getTypePtrOrNull();
+
+    if ( realType->isArrayType() )
+    {
+        size_t found;
+        found = sparmType.find ( "[" );
+        if ( found != std::string::npos )
+        {
+            prefix = sparmType.substr ( 0, found );
+            suffix = sparmType.substr ( found, sparmType.size() - 1 );
+        }
+        else
+        {
+            prefix = sparmType;
+            suffix = "";
+        }
+    }
+    else if ( realType->isFunctionPointerType() )
+    {
+        size_t found;
+        found = sparmType.find ( "(*)" );
+        if ( found != std::string::npos )
+        {
+            prefix = sparmType.substr ( 0, found + 2 );
+            suffix = sparmType.substr ( found + 2, sparmType.size() - 1 );
+        }
+        else
+        {
+            prefix = sparmType;
+            suffix = "";
+        }
+    }
+    else
+    {
+        prefix = sparmType;
+        suffix = "";
+    }
+}
+
+bool returnValueAsAString ( clang::FunctionDecl *fdecl, std::string &retPrefix,
+                            std::string &retSuffix , bool useCanonical )
+{
+    bool result = false;
+    clang::QualType retqualType = fdecl->getResultType();
+    std::string sparmType = retqualType.getAsString();
+
+    if ( useCanonical )
+    {
+        clang::QualType qtype = retqualType.getCanonicalType();
+        std::string canonParmType = qtype.getAsString();
+        sparmType = canonParmType;
+    }
+
+    // I don't see in clang API how to know if the return value
+    // is a function pointer. TODO use the actual clang::Type to know if this is a pointer
+    size_t found;
+    found = sparmType.find ( "(*)" );
+    if ( found != std::string::npos )
+    {
+        retPrefix = sparmType.substr ( 0, found + 2 );
+        retSuffix = sparmType.substr ( found + 2, sparmType.size() - 1 );
+        result = true;
+    }
+    else
+    {
+        retPrefix = sparmType;
+        retSuffix = "";
+    }
+    return result;
+}
+
+void replaceAll ( std::string &str, const std::string &from, const std::string &to )
+{
+    if ( from.empty() )
+        return;
+    size_t start_pos = 0;
+    while ( ( start_pos = str.find ( from, start_pos ) ) != std::string::npos )
+    {
+        str.replace ( start_pos, from.length(), to );
+        start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
+    }
+}
+
+
+std::string string_replace ( std::string src, std::string const &target, std::string const &repl )
+{
+    // handle error situations/trivial cases
+
+    if ( target.length() == 0 )
+    {
+        // searching for a match to the empty string will result in
+        //  an infinite loop
+        //  it might make sense to throw an exception for this case
+        return src;
+    }
+
+    if ( src.length() == 0 )
+    {
+        return src;  // nothing to match against
+    }
+
+    size_t idx = 0;
+
+    for ( ;; )
+    {
+        idx = src.find ( target, idx );
+        if ( idx == std::string::npos )  break;
+
+        src.replace ( idx, target.length(), repl );
+        idx += repl.length();
+    }
+
+    return src;
+}
+
+bool isFunctionVoid ( clang::FunctionDecl *f )
+{
+    clang::QualType retType = f->getResultType();
+    const clang::Type *realType =  retType.getTypePtrOrNull();
+    if ( realType->isVoidType() )
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+

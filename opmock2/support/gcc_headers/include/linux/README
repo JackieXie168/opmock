@@ -1,0 +1,4 @@
+limits.h has been copied from the glibc. Normaly we should use the one from the compiler installation,
+however this one in turn includes the one from the linux kernel itself, triggering a slew of dependencies.
+As I just want to generate code with no special respect for the endianess or word size, that should be ok
+to include a header even if it does not exactly match the current architecture.
