@@ -60,7 +60,10 @@
 #include "clang/AST/ASTContext.h"
 
 #include "clang/Parse/ParseAST.h"
-#include "clang/Frontend/HeaderSearchOptions.h"
+//#include "clang/Frontend/HeaderSearchOptions.h"
+//with llvm32 new path
+#include "clang/Lex/HeaderSearchOptions.h"
+
 #include "clang/Frontend/Utils.h"
 
 
@@ -1943,6 +1946,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             outc << "}\n\n";
 
 
+            // list of class operations
             for ( std::vector<OpFunction *>::iterator it2 = one_rec->methods.begin();
                     it2 != one_rec->methods.end(); ++it2 )
             {
@@ -2187,7 +2191,10 @@ OpFunction *extractFunction ( clang::FunctionDecl *fdecl,
         {
             new_func->isStatic = true;
         }
-
+        if ( mdecl->isConst() )
+        {
+            new_func->isConst = true;
+        }
     }
 
     // return value
@@ -2782,7 +2789,12 @@ std::string OpFunction::buildSignature ( OpRecord *one_rec )
 
     result += "(";
     result += buildParameters();
-    result += ")" + retSignatureRight;
+    result += ")";
+    if(this->isConst)
+    {
+        result += " const";
+    }
+    result += retSignatureRight;
     return result;
 }
 
