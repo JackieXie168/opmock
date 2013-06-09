@@ -17,6 +17,8 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+//FIXME le code C n'est plus généré correctement!
+
 // opmock3 will introduce breaking changes in APIs and
 // refactor headers to extract inlined code (if too complex/not self contained)
 // if the inlined code is 'clean' (depends only on the class attributes, does not trigger
@@ -152,7 +154,7 @@ void writeFunctionMockWithInstanceCallbackBody ( OpFunction *one_func, OpRecord 
 void writeFunctionVerifyMockBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 void writeFunctionExpectAndReturnBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 
-class MyRecursiveASTVisitor
+/*class MyRecursiveASTVisitor
     : public clang::RecursiveASTVisitor<MyRecursiveASTVisitor>
 {
 public:
@@ -161,6 +163,7 @@ public:
     clang::ASTContext *ast;
 private:
 };
+*/
 
 class MyRecursiveASTVisitorCpp
     : public clang::RecursiveASTVisitor<MyRecursiveASTVisitorCpp>
@@ -183,7 +186,7 @@ public:
 private:
 };
 
-bool MyRecursiveASTVisitor::VisitDecl ( clang::Decl *d )
+/*bool MyRecursiveASTVisitor::VisitDecl ( clang::Decl *d )
 {
 
 
@@ -208,6 +211,7 @@ bool MyRecursiveASTVisitor::VisitDecl ( clang::Decl *d )
     }
     return true;
 }
+*/
 
 // for C++
 
@@ -226,14 +230,14 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
     }
 */
     //debug
-     /*   std::cout << "Visiting decl : "
+        std::cout << "Visiting decl : "
                   << d->getDeclKindName() << "\n";
         clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
         if ( ndecl )
         {
             std::cout <<  "nom decl " << ndecl->getNameAsString() << std::endl;
         }
-        */
+        
      
     if ( d->getKind() == clang::Decl::CXXRecord )
     {
@@ -369,6 +373,8 @@ int main ( int argc, char **argv )
     const char ** argsPtr = new const char *[clangParamsList.size() + 1];
     i=0;
     for(std::vector<const char *>::iterator it = clangParamsList.begin(); it != clangParamsList.end(); ++it) {
+
+        printf("arg clang %s\n", *it);
         argsPtr[i] = *it;
         i++;
     }
@@ -400,7 +406,7 @@ int main ( int argc, char **argv )
 //options possibles : pour include et type de dialecte
     MyRecursiveASTVisitorCpp myvis;
     
-    MyRecursiveASTVisitor myvisC;//FIXME utiliser un seul visiteur ds les deux cas
+    //MyRecursiveASTVisitor myvisC;
 
     myvis.ast = &AST->getASTContext();
     myvis.TraverseDecl(AST->getASTContext().getTranslationUnitDecl());
@@ -424,8 +430,8 @@ int main ( int argc, char **argv )
         {
             std::vector<std::string> toSkip;
             tokenizeString ( funcToSkip, toSkip, "," );
-            for ( std::vector<clang::FunctionDecl *>::iterator it2 = myvisC.functionList.begin();
-                    it2 != myvisC.functionList.end(); ++it2 )
+            for ( std::vector<clang::FunctionDecl *>::iterator it2 = myvis.functionList.begin();
+                    it2 != myvis.functionList.end(); ++it2 )
             {
                 clang::FunctionDecl *one_fdecl = *it2;
                 bool shouldSkip = false;
@@ -451,7 +457,7 @@ int main ( int argc, char **argv )
         }
         else
         {
-            filteredFunctionList = myvisC.functionList;
+            filteredFunctionList = myvis.functionList;
         }
 
         std::vector<clang::FunctionDecl *> keepFunctionList;
