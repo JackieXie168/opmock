@@ -5,7 +5,7 @@ all: test
 	./test
 
 test: $(OBJECTS)
-	gcc -o test $(OBJECTS)
+	g++ -o test $(OBJECTS)
 
 
 clean: 

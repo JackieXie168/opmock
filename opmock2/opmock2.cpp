@@ -1,7 +1,7 @@
 /* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
 /*
  * opmock2.cpp
- * Copyright (C) Pascal Ognibene 2012 <pognibene@gmail.com>
+ * Copyright (C) Pascal Ognibene 2012-2013 <pognibene@gmail.com>
  *
  * opmock is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -43,6 +43,7 @@
 #include <fstream>
 #include <algorithm>
 #include <string>
+#include <vector>
 
 #include "llvm/Support/Host.h"
 #include "llvm/Support/raw_ostream.h"
@@ -64,6 +65,10 @@
 //with llvm32 new path
 #include "clang/Lex/HeaderSearchOptions.h"
 
+//new for 3.2
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include <clang/Frontend/TextDiagnosticBuffer.h>
+
 #include "clang/Frontend/Utils.h"
 
 
@@ -72,6 +77,8 @@
 #include <ctype.h>
 #include <vector>
 #include <clang/AST/Type.h>
+
+#include <clang/Frontend/ASTUnit.h>
 
 #include "opmock2.hpp"
 
@@ -208,7 +215,7 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
 {
     // store all declarations for later use
     // don't store function parameters
-    clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
+/*    clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
     if ( ndecl )
     {
         clang::ParmVarDecl *parmdecl = clang::dyn_cast<clang::ParmVarDecl> ( d );
@@ -217,16 +224,17 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
             declList.push_back ( ndecl );
         }
     }
-
+*/
     //debug
-    /*    std::cout << "Visiting decl : "
+     /*   std::cout << "Visiting decl : "
                   << d->getDeclKindName() << "\n";
         clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
         if ( ndecl )
         {
             std::cout <<  "nom decl " << ndecl->getNameAsString() << std::endl;
         }
-     */
+        */
+     
     if ( d->getKind() == clang::Decl::CXXRecord )
     {
         clang::CXXRecordDecl *rdecl =
@@ -268,68 +276,13 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
     return true;
 }
 
-class MyASTConsumer : public clang::ASTConsumer
-{
-public:
-    virtual bool HandleTopLevelDecl ( clang::DeclGroupRef d );
-    MyASTConsumer ( clang::ASTContext *ast );
-    MyRecursiveASTVisitor rv;
-private:
-    clang::ASTContext *astContext;
-};
-
-class MyASTConsumerCpp : public clang::ASTConsumer
-{
-public:
-    virtual bool HandleTopLevelDecl ( clang::DeclGroupRef d );
-    MyASTConsumerCpp ( clang::ASTContext *ast );
-    MyRecursiveASTVisitorCpp rv;
-private:
-    clang::ASTContext *astContext;
-};
-
-MyASTConsumer::MyASTConsumer ( clang::ASTContext *ast )
-{
-    astContext = ast;
-}
-
-MyASTConsumerCpp::MyASTConsumerCpp ( clang::ASTContext *ast )
-{
-    astContext = ast;
-}
-
-bool MyASTConsumer::HandleTopLevelDecl ( clang::DeclGroupRef d )
-{
-    rv.ast = astContext;
-    typedef clang::DeclGroupRef::iterator iter;
-    for ( iter b = d.begin(), e = d.end(); b != e; ++b )
-    {
-        rv.TraverseDecl ( *b );
-    }
-    return true;
-}
-
-bool MyASTConsumerCpp::HandleTopLevelDecl ( clang::DeclGroupRef d )
-{
-    rv.ast = astContext;
-    typedef clang::DeclGroupRef::iterator iter;
-    for ( iter b = d.begin(), e = d.end(); b != e; ++b )
-    {
-        rv.TraverseDecl ( *b );
-    }
-    return true;
-}
-
 int main ( int argc, char **argv )
 {
     using clang::CompilerInstance;
     using clang::TargetOptions;
     using clang::TargetInfo;
-    using clang::FileEntry;
-    using clang::HeaderSearchOptions;
+    std::vector<const char *> clangParamsList;
 
-    std::vector<std::string> includeList;
-    std::vector<std::string> macroList;
     std::string inputFile;
     std::string outputPath;
     std::string hprefix;
@@ -339,140 +292,126 @@ int main ( int argc, char **argv )
     bool useCpp = false;
 
     // parse command line options
-    for ( int i = 1; i < argc; i++ )
+    // options specific to opmock are:
+    //
+    // -cpp to specify that it's a c++ header. By default, we assume it's a C header
+    // -i for the header file to parse
+    // -o for the output path
+    // -p to give an *optional* prefix for header inclusion when generating code
+    // -q to use quotes when including the original header file. The default is to use < and >
+    // -s to give a comma separated list of functions/method to skip when generating code
+    // -k to give a comma separated list of functions/method to keep when generating code
+    //
+    // All other options are passed verbatim to clang, like -I, -D or compiler flags to
+    // specify a specific flavor of C or C++. This includes options if you want to parse
+    // headers files using GNU or MS extensions.
+
+    int i = 1;
+    while (i < argc)
     {
-        // include definition
-        if ( strncmp ( argv[i], "-I", 2 ) == 0 )
-        {
-            includeList.push_back ( argv[i] + 2 );
-        }
-        // macro definition
-        else if ( strncmp ( argv[i], "-D", 2 ) == 0 )
-        {
-            macroList.push_back ( argv[i] + 2 );
-        }
-        //input header
-        else if ( strcmp ( argv[i], "-i" ) == 0 )
+        //input header to be parsed
+        if ( strcmp ( argv[i], "-i" ) == 0 )
         {
             inputFile = argv[i + 1];
+            i += 2;
         }
         // output path
         else if ( strcmp ( argv[i], "-o" ) == 0 )
         {
             outputPath = argv[i + 1];
+            i += 2;
         }
         // prefix for the header
         else if ( strcmp ( argv[i], "-p" ) == 0 )
         {
             hprefix = argv[i + 1];
+            i += 2;
         }
         // use quotes to include the original header file
         // in the generated code
         else if ( strcmp ( argv[i], "-q" ) == 0 )
         {
             useQuotes = true;
+            i++;
         }
         // skip a list of comma separated functions
         else if ( strcmp ( argv[i], "-s" ) == 0 )
         {
             funcToSkip = argv[i + 1];
+            i += 2;
         }
         // keep a list of comma separated functions (and skip all others)
         // should be mutually exclusive of -s but can still be combined
         else if ( strcmp ( argv[i], "-k" ) == 0 )
         {
             funcToKeep = argv[i + 1];
+            i += 2;
         }
         else if ( strcmp ( argv[i], "-cpp" ) == 0 )
         {
             useCpp = true;
+            i++;
+        }
+        else
+        {
+            // default case : not an opmock option, so let's
+            // build a vector of options to be passed to clang
+            clangParamsList.push_back ( argv[i] );
+            i++;
         }
     }
 
-    CompilerInstance ci;
-    if ( useCpp )
-    {
-        ci.getLangOpts().CPlusPlus = 1;
-        ci.getLangOpts().Bool = 1;
-        ci.getLangOpts().CXXExceptions = 1;
-        ci.getLangOpts().RTTI = 1;
-        //ci.getLangOpts().GNUMode = 1;
+    //TODO check mandatory parameters
+
+    // build the arguments for clang, removing arguments specific to opmock
+    // +1 because I need to put the file to be parsed first
+    clangParamsList.insert(clangParamsList.begin(), inputFile.c_str());
+    const char ** argsPtr = new const char *[clangParamsList.size() + 1];
+    i=0;
+    for(std::vector<const char *>::iterator it = clangParamsList.begin(); it != clangParamsList.end(); ++it) {
+        argsPtr[i] = *it;
+        i++;
     }
+    llvm::ArrayRef<const char*> Args(argsPtr, clangParamsList.size());
 
-    ci.createDiagnostics ( 0, NULL );
+    // AST preparation
+	clang::ASTUnit* AST;
 
-    TargetOptions to;
-    to.Triple = llvm::sys::getDefaultTargetTriple();
-    TargetInfo *pti = TargetInfo::CreateTargetInfo ( ci.getDiagnostics(), to );
-    ci.setTarget ( pti );
+	llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
+  clang::TextDiagnosticPrinter *DiagClient =
+    new clang::TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
+  llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID(new clang::DiagnosticIDs());
+	llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> DiagsRef(
+      new clang::DiagnosticsEngine(DiagID, &*DiagOpts, DiagClient));
 
-    ci.createFileManager();
-    ci.createSourceManager ( ci.getFileManager() );
-    ci.createPreprocessor();
+    clang::CompilerInvocation *CI = new clang::CompilerInvocation();
+    clang::CompilerInvocation::CreateFromArgs(*CI, Args.begin(), Args.end(), *DiagsRef);
 
-//try to get the gcc built ins
-//seems to work!
-//need now the C headers in addition of C++ headers
-//for gcc 4.2
-	clang::Preprocessor &PP = ci.getPreprocessor();
-    PP.getBuiltinInfo().InitializeBuiltins(PP.getIdentifierTable(),
-                                           PP.getLangOpts());
-    HeaderSearchOptions headerSearchOptions;
-    for ( std::vector<std::string>::iterator it = includeList.begin(); it != includeList.end(); ++it )
-    {
-        headerSearchOptions.AddPath ( *it,
-                                      clang::frontend::Angled,
-                                      false,
-                                      false,
-                                      false );
-    }
+    clang::LangOptions opts;
+    //TODO voir standard a donner ici pour le langage
+    CI->setLangDefaults(opts, clang::IK_CXX, clang::LangStandard::lang_cxx98);
+    //CI->getPreprocessorOutputOpts().ShowComments = 1;
+    //CI->getPreprocessorOutputOpts().ShowLineMarkers = 1;
 
-    clang::PreprocessorOptions &ppOptions = ci.getPreprocessorOpts();
-    for ( std::vector<std::string>::iterator it = macroList.begin(); it != macroList.end(); ++it )
-    {
-        ppOptions.addMacroDef ( *it );
-    }
+    AST = clang::ASTUnit::LoadFromCompilerInvocation(CI, DiagsRef);
 
-    clang::InitializePreprocessor ( ci.getPreprocessor(),
-                                    ci.getPreprocessorOpts(),
-                                    headerSearchOptions,
-                                    ci.getFrontendOpts() );
-    ci.createASTContext();
 
-    MyASTConsumer *astConsumer = NULL;
-    MyASTConsumerCpp *astConsumerCpp = NULL;
+//FIXME utyiliser visiteur approprié selon langage
+//options possibles : pour include et type de dialecte
+    MyRecursiveASTVisitorCpp myvis;
+    
+    MyRecursiveASTVisitor myvisC;//FIXME utiliser un seul visiteur ds les deux cas
 
-    if ( useCpp )
-    {
-        astConsumerCpp = new MyASTConsumerCpp ( &ci.getASTContext() );
-        ci.setASTConsumer ( astConsumerCpp );
-    }
-    else
-    {
-        astConsumer = new MyASTConsumer ( &ci.getASTContext() );
-        ci.setASTConsumer ( astConsumer );
-    }
-
-    const FileEntry *pFile = ci.getFileManager().getFile ( inputFile );
-    ci.getSourceManager().createMainFileID ( pFile );
-    ci.getDiagnosticClient().BeginSourceFile ( ci.getLangOpts(),
-            &ci.getPreprocessor() );
-
-    if ( useCpp )
-    {
-        clang::ParseAST ( ci.getPreprocessor(), astConsumerCpp, ci.getASTContext() );
-    }
-    else
-    {
-        clang::ParseAST ( ci.getPreprocessor(), astConsumer, ci.getASTContext() );
-    }
-    ci.getDiagnosticClient().EndSourceFile();
+    myvis.ast = &AST->getASTContext();
+    myvis.TraverseDecl(AST->getASTContext().getTranslationUnitDecl());
 
     if ( useCpp )
     {
         // TODO filtering of functions and operations
-        writeFilesForCpp ( astConsumerCpp->rv.functionList, astConsumerCpp->rv.recordList,
-                           astConsumerCpp->rv.declList,
+        // if a class has no operations generate nothing for it
+        //
+        writeFilesForCpp ( myvis.functionList, myvis.recordList,
+                           myvis.declList,
                            outputPath, inputFile, hprefix, useQuotes );
     }
     else
@@ -485,8 +424,8 @@ int main ( int argc, char **argv )
         {
             std::vector<std::string> toSkip;
             tokenizeString ( funcToSkip, toSkip, "," );
-            for ( std::vector<clang::FunctionDecl *>::iterator it2 = astConsumer->rv.functionList.begin();
-                    it2 != astConsumer->rv.functionList.end(); ++it2 )
+            for ( std::vector<clang::FunctionDecl *>::iterator it2 = myvisC.functionList.begin();
+                    it2 != myvisC.functionList.end(); ++it2 )
             {
                 clang::FunctionDecl *one_fdecl = *it2;
                 bool shouldSkip = false;
@@ -512,7 +451,7 @@ int main ( int argc, char **argv )
         }
         else
         {
-            filteredFunctionList = astConsumer->rv.functionList;
+            filteredFunctionList = myvisC.functionList;
         }
 
         std::vector<clang::FunctionDecl *> keepFunctionList;

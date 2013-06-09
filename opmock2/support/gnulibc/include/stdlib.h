@@ -22,6 +22,12 @@
 
 #ifndef	_STDLIB_H
 
+//pascal : if wchar_t not defined define it
+//#ifndef POG_WCHAR_T
+//#define POG_WCHAR_T
+//typedef unsigned int wchar_t;
+//#endif
+
 #include <features.h>
 
 /* Get size_t, wchar_t and NULL from <stddef.h>.  */
