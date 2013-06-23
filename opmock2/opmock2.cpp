@@ -153,6 +153,9 @@ void writeFunctionMockWithInstanceCallbackBody ( OpFunction *one_func, OpRecord 
 void writeFunctionVerifyMockBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 void writeFunctionExpectAndReturnBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 
+void writeConstructorBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
+void writeDestructorBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
+
 class MyRecursiveASTVisitorCpp
     : public clang::RecursiveASTVisitor<MyRecursiveASTVisitorCpp>
 {
@@ -1173,8 +1176,6 @@ bool isFunctionVoid ( clang::FunctionDecl *f )
     }
 }
 
-//FIXME pour constructeur virtuel pur (ou destructeur)
-//je n'ai pas d ebody generé alors pb de link
 void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                         std::vector<clang::CXXRecordDecl *> recordList,
                         std::vector<clang::NamedDecl *> declList,
@@ -1241,7 +1242,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
     std::map<std::string, int> overloadMap;
 
     //  extract functions informations
-	// functions are already filtered at that point
+    // functions are already filtered at that point
     for ( std::vector<clang::FunctionDecl *>::iterator it = functionList.begin();
             it != functionList.end(); ++it )
     {
@@ -1288,26 +1289,21 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             OpFunction *new_func = extractFunction ( *it2, mOverloadMap, nsMap );
             if ( new_func )
             {
-
-
-std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\n";
-
-
-		// filter variadic methods
-		// TODO don't filter variadics. Instead write mock code
-		// that does not store parameters and callbacks
-		// meaning that we just store the return value and we don't use
-		// any matchers. If matchers are assigned they will just be ignored
-		// (or maybe only on fixed parameters?)
-		if(new_func->isVariadic)
-		{
-			std::cout << "Filtering method " << new_func->qualifiedName << " as it is variadic\n";
-			delete new_func;
-		}
-		else
-		{
-                	new_rec->methods.push_back ( new_func );
-		}
+                // filter variadic methods
+                // TODO don't filter variadics. Instead write mock code
+                // that does not store parameters and callbacks
+                // meaning that we just store the return value and we don't use
+                // any matchers. If matchers are assigned they will just be ignored
+                // (or maybe only on fixed parameters?)
+                if(new_func->isVariadic)
+                {
+                    std::cout << "Filtering method " << new_func->qualifiedName << " as it is variadic\n";
+                    delete new_func;
+                }
+                else
+                {
+                    new_rec->methods.push_back ( new_func );
+                }
             }
         }
 
@@ -1334,9 +1330,9 @@ std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\
         }
         else if ( toKeep.size() > 0 )
         {
-		std::vector<OpFunction *> methodsToKeep;
+            std::vector<OpFunction *> methodsToKeep;
 
-		for ( std::vector<std::string>::iterator it1 = toKeep.begin();
+            for ( std::vector<std::string>::iterator it1 = toKeep.begin();
                     it1 != toKeep.end(); ++it1 )
             {
                 std::string toCompare = *it1;
@@ -1350,15 +1346,15 @@ std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\
                         std::cout << "Keeping method " << fname <<
                                   " because it is in the keep list." << std::endl;
                         //it2 = new_rec->methods.erase ( it2 );
-			methodsToKeep.push_back(*it2);
+                        methodsToKeep.push_back(*it2);
                     }
                 }
             }
-		if(methodsToKeep.size() > 0)
-		{
-			new_rec->methods.clear();
-			new_rec->methods = methodsToKeep;
-		}
+            if(methodsToKeep.size() > 0)
+            {
+                new_rec->methods.clear();
+                new_rec->methods = methodsToKeep;
+            }
         }
 
 
@@ -1546,49 +1542,26 @@ std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\
             {
                 OpFunction *one_func = *itr;
 
-		bool shouldGenerate = true;
+                bool shouldGenerate = true;
 
-		if (one_func->isOperatorOverload == true)
-			shouldGenerate = false;
+                if (one_func->isOperatorOverload == true)
+                    shouldGenerate = false;
 
-		if (one_func->isConstructor == true)
-		{
-			//FIXME pure virtual n'est pas rensiegné
-			// faire ds extract function
-			// si pure virtual je ne devrais rien générer
-			// car generation doit etre associee a une sous classe
-			//proposant par ex la methode en virtual ou en concret
-			//idem pour destructor
-			//quitte ds la generation a creer un header pour classe
-			//derivant de la classe de base et proposant la methode en
-			//virtual ou concret, pour que la génération se fasse
-			
-			//d'ailleurs c'est valable pour toutes les methodes:
-			//si pure virtual je devrais la filtrer
-			//probleme ds ce cas : je dois toujours mocker
-			//la classe concrete plutot que la classe mere contenant
-			//les methodes virtuelles pures?
+                // don't generate any mock code for constructors/destructors
+                // only a basic body will be generated for the base class
+                // Typically mocking constructors/destructors does not have any sense,
+                // as there's no return value and side effects may be mocked as well.
+                if (one_func->isConstructor == true)
+                {
+                    shouldGenerate = false;
+                }
+                
+                if (one_func->isDestructor == true)
+                {
+                    shouldGenerate = false;
+                }
 
-
-			//si je ne connais pas le type exact de la classe reçue
-			//(j'ai un type abstrait en parametre) alors comment
-			//savoir quelle fonction de mock appeler?
-
-			//FIXME
-			//ai-je le droit de fournir une implementation en nC++
-			//pour une methode virtuelle pure?
-			//ex void foo() = 0;
-
-			//void foo() {} avec du code de mock
-
-			//si oui alors je peux implementer un mock pour
-			//methode virtuelle pure incluant constructeur (pour constructeur
-			//peut etre simplifié : contenu vide)
-		}
- 
-                /*if ( ( one_func->isConstructor == false ) && ( one_func->isDestructor == false )
-                        && ( one_func->isOperatorOverload == false ) )*/
-		if(shouldGenerate == true)
+                if(shouldGenerate == true)
                 {
                     std::string ns_left;
                     std::string ns_right;
@@ -2011,9 +1984,18 @@ std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\
                     writeFunctionVerifyMockBody ( one_func, one_rec, outc );
                     writeFunctionExpectAndReturnBody ( one_func, one_rec, outc );
                 }
-                //TODO special case for constructors/destructor : write
-                //versions with empty bodies (or just returning a default value)
-                //to be able to link
+                // special case for constructors/destructor : write
+                // versions with empty bodies
+                // to be able to link
+                if (one_func->isConstructor)
+                {
+                    writeConstructorBody(one_func, one_rec, outc);
+                }
+                else if (one_func->isDestructor)
+                {
+                    writeDestructorBody(one_func, one_rec, outc);
+                }
+
             }
         }
     }
@@ -2033,8 +2015,8 @@ OpFunction::OpFunction()
     this->isDestructor = false;
     this->isOperatorOverload = false;
     this->isTemplate = false;
-	this->isVirtual = false;
-	this->isPureVirtual = false;
+    this->isVirtual = false;
+    this->isPureVirtual = false;
 }
 
 OpParameter::OpParameter()
@@ -2823,7 +2805,13 @@ std::string OpFunction::buildParameterNames()
 std::string OpFunction::buildSignature ( OpRecord *one_rec )
 {
     std::string result;
-    result += retSignatureLeft + " ";
+
+    // if the function is either a constructor or a destructor,
+    // no return value
+    if((this->isConstructor == false) && (this->isDestructor == false))
+    {
+        result += retSignatureLeft + " ";
+    }
     if ( one_rec )
     {
         result += one_rec->qualifiedName + "::" + name;
@@ -2923,5 +2911,23 @@ void startHeaderFile ( std::string &output, std::string &input_file,
 
     result += "#include \"opmock.h\"\n\n";
 
+}
+
+void writeConstructorBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out )
+{
+    // basic, empty destructor to make sure we link
+    // as constructor/destructors don't return values and should not have side
+    // effects beside the current class instance, no need to mock them?
+    out << one_func->buildSignature ( one_rec );
+    out << "\n{\n";
+    out << "}" << std::endl;
+}
+
+void writeDestructorBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out )
+{
+    // same for destructor
+    out << one_func->buildSignature ( one_rec );
+    out << "\n{\n";
+    out << "}" << std::endl;
 }
 
