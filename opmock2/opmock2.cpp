@@ -34,10 +34,6 @@
 
 //FIXME ne gere pas pour l'instant conversion operator
 
-//FIXME generer des constructeurs et des destructeurs vides par défaut
-//y compris les surcharges
-
-//FIXME supprimer les const des structs et tester tous les cas de const possibles
 
 #include <iostream>
 #include <fstream>
@@ -355,7 +351,7 @@ int main ( int argc, char **argv )
     clang::CompilerInvocation::CreateFromArgs ( *CI, Args.begin(), Args.end(), *DiagsRef );
 
     //clang::LangOptions opts;
-//donner langage et standard depuis la ligne de commande
+    //everything from the command line
     /*
         if(useCpp)
         {
@@ -1300,6 +1296,12 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     std::cout << "Filtering method " << new_func->qualifiedName << " as it is variadic\n";
                     delete new_func;
                 }
+                else if(new_func->isInlined)
+                {
+                    std::cout << "Filtering method " << new_func->qualifiedName << " as it is inlined\n";
+                    delete new_func;
+                }
+
                 else
                 {
                     new_rec->methods.push_back ( new_func );
@@ -2076,20 +2078,12 @@ OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
     clang::QualType retType = pdecl->getOriginalType();
     std::string originalTypeS = retType.getAsString();
 
-    std::cout << pname << " type parametre original " << originalTypeS << std::endl;
-    //TODO : si je veux accepter les types template instancié
-    //je ne dois pas utiliser le type canonique...
-    //peut se détecter si <> ds le parametre?
-    //
-    ////tenter un dyn_cast vers un TemplateSpecialization (sur le type)
-    //si marche alors il faut extraire les informations du template (les parametres en particulier,
-    //le nom du template...
-    //
+    //std::cout << pname << " type parametre original " << originalTypeS << std::endl;
     const clang::Type *orgType = retType.getTypePtrOrNull();
     const clang::TemplateSpecializationType *ttype = clang::dyn_cast< clang::TemplateSpecializationType> ( orgType );
     if ( ttype )
     {
-        std::cout << "argument " << pname << " est template specialisation\n";
+       // std::cout << "argument " << pname << " est template specialisation\n";
     }
 
 
@@ -2111,7 +2105,7 @@ OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
     replaceAll ( parmString2, "const", "" );
     replaceAll ( parmString2, "volatile", "" );
 
-    std::cout << "type parametre " << parmString2 << std::endl;
+    //std::cout << "type parametre " << parmString2 << std::endl;
 
     // if the parameter is a function pointer type
     // then I may need to split it in left and right part
@@ -2226,7 +2220,6 @@ OpFunction *extractFunction ( clang::FunctionDecl *fdecl,
     }
 
     // return value
-//FIXME return value should also be fully scoped
     bool isReference;
     new_func->retStructType = getStructReturnType ( fdecl, isReference );
     std::string lval, rval;
@@ -2240,7 +2233,7 @@ OpFunction *extractFunction ( clang::FunctionDecl *fdecl,
 
 
 
-    std::cout << "parametres fonction " << new_func->name << std::endl;
+    //std::cout << "parametres fonction " << new_func->name << std::endl;
 
 
     unsigned nbParam = fdecl->getNumParams();
