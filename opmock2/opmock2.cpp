@@ -17,8 +17,6 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//FIXME le code C n'est plus généré correctement!
-
 // opmock3 will introduce breaking changes in APIs and
 // refactor headers to extract inlined code (if too complex/not self contained)
 // if the inlined code is 'clean' (depends only on the class attributes, does not trigger
@@ -108,7 +106,8 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                         std::vector<clang::CXXRecordDecl *> classList,
                         std::vector<clang::NamedDecl *> declList,
                         std::string &output, std::string &input_file,
-                        std::string prefix, bool useQuotes );
+                        std::string prefix, bool useQuotes,
+                        std::string &funcToSkip, std::string &funcToKeep );
 
 std::string SplitFilename ( const std::string &str );
 std::string SplitPath ( const std::string &str );
@@ -132,19 +131,19 @@ bool isFunctionVoid ( clang::FunctionDecl *f );
 bool isParmArray ( clang::ParmVarDecl *pdecl );
 bool isParmPointer ( clang::ParmVarDecl *pdecl );
 void tokenizeString ( const std::string &str,
-                      std::vector<std::string>& tokens,
+                      std::vector<std::string> &tokens,
                       const std::string &delimiters );
 
 
 std::string getStructReturnType ( clang::FunctionDecl *fdecl, bool &isReference );
 
 OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
-                              std::map< std::string, NameMap * > & nsmap,
+                              std::map< std::string, NameMap * > &nsmap,
                               int number );
 
 OpFunction *extractFunction ( clang::FunctionDecl *mdecl,
-                              std::map<std::string, int> & overloadMap,
-                              std::map< std::string, NameMap * > & nsMap );
+                              std::map<std::string, int> &overloadMap,
+                              std::map< std::string, NameMap * > &nsMap );
 
 void writeFunctionBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 void writeFunctionMockResetBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
@@ -153,17 +152,6 @@ void writeFunctionMockWithInstanceCallbackBody ( OpFunction *one_func, OpRecord 
 
 void writeFunctionVerifyMockBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
 void writeFunctionExpectAndReturnBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream &out );
-
-/*class MyRecursiveASTVisitor
-    : public clang::RecursiveASTVisitor<MyRecursiveASTVisitor>
-{
-public:
-    bool VisitDecl ( clang::Decl *d );
-    std::vector<clang::FunctionDecl *> functionList;
-    clang::ASTContext *ast;
-private:
-};
-*/
 
 class MyRecursiveASTVisitorCpp
     : public clang::RecursiveASTVisitor<MyRecursiveASTVisitorCpp>
@@ -186,59 +174,30 @@ public:
 private:
 };
 
-/*bool MyRecursiveASTVisitor::VisitDecl ( clang::Decl *d )
-{
-
-
-    if ( d->getKind() == clang::Decl::Function )
-    {
-        clang::FunctionDecl *fdecl =
-            clang::dyn_cast<clang::FunctionDecl > ( d );
-
-        clang::SourceLocation loc = d->getLocation();
-        if ( ast->getSourceManager().isFromMainFile ( loc ) )
-        {
-            functionList.push_back ( fdecl );
-        }
-        else
-        {
-            clang::SourceLocation loc2 = ast->getSourceManager().getExpansionLoc ( loc );
-            if ( ast->getSourceManager().isFromMainFile ( loc2 ) )
-            {
-                functionList.push_back ( fdecl );
-            }
-        }
-    }
-    return true;
-}
-*/
-
-// for C++
-
 bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
 {
     // store all declarations for later use
     // don't store function parameters
-/*    clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
-    if ( ndecl )
-    {
-        clang::ParmVarDecl *parmdecl = clang::dyn_cast<clang::ParmVarDecl> ( d );
-        if ( !parmdecl )
+    /*    clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
+        if ( ndecl )
         {
-            declList.push_back ( ndecl );
+            clang::ParmVarDecl *parmdecl = clang::dyn_cast<clang::ParmVarDecl> ( d );
+            if ( !parmdecl )
+            {
+                declList.push_back ( ndecl );
+            }
         }
-    }
-*/
+    */
     //debug
-        std::cout << "Visiting decl : "
+    /*    std::cout << "Visiting decl : "
                   << d->getDeclKindName() << "\n";
         clang::NamedDecl *ndecl = clang::dyn_cast<clang::NamedDecl> ( d );
         if ( ndecl )
         {
             std::cout <<  "nom decl " << ndecl->getNameAsString() << std::endl;
         }
-        
-     
+    */
+
     if ( d->getKind() == clang::Decl::CXXRecord )
     {
         clang::CXXRecordDecl *rdecl =
@@ -311,7 +270,7 @@ int main ( int argc, char **argv )
     // headers files using GNU or MS extensions.
 
     int i = 1;
-    while (i < argc)
+    while ( i < argc )
     {
         //input header to be parsed
         if ( strcmp ( argv[i], "-i" ) == 0 )
@@ -368,140 +327,148 @@ int main ( int argc, char **argv )
     //TODO check mandatory parameters
 
     // build the arguments for clang, removing arguments specific to opmock
-    // +1 because I need to put the file to be parsed first
-    clangParamsList.insert(clangParamsList.begin(), inputFile.c_str());
-    const char ** argsPtr = new const char *[clangParamsList.size() + 1];
-    i=0;
-    for(std::vector<const char *>::iterator it = clangParamsList.begin(); it != clangParamsList.end(); ++it) {
-
-        printf("arg clang %s\n", *it);
+    // +1 arg because I need to put the file to be parsed first
+    clangParamsList.insert ( clangParamsList.begin(), inputFile.c_str() );
+    const char **argsPtr = new const char *[clangParamsList.size() + 1];
+    i = 0;
+    for ( std::vector<const char *>::iterator it = clangParamsList.begin(); it != clangParamsList.end(); ++it )
+    {
         argsPtr[i] = *it;
         i++;
     }
-    llvm::ArrayRef<const char*> Args(argsPtr, clangParamsList.size());
+    llvm::ArrayRef<const char *> Args ( argsPtr, clangParamsList.size() );
 
     // AST preparation
-	clang::ASTUnit* AST;
+    clang::ASTUnit *AST;
 
-	llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
-  clang::TextDiagnosticPrinter *DiagClient =
-    new clang::TextDiagnosticPrinter(llvm::errs(), &*DiagOpts);
-  llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID(new clang::DiagnosticIDs());
-	llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> DiagsRef(
-      new clang::DiagnosticsEngine(DiagID, &*DiagOpts, DiagClient));
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
+    clang::TextDiagnosticPrinter *DiagClient =
+        new clang::TextDiagnosticPrinter ( llvm::errs(), &*DiagOpts );
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID ( new clang::DiagnosticIDs() );
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticsEngine> DiagsRef (
+        new clang::DiagnosticsEngine ( DiagID, &*DiagOpts, DiagClient ) );
 
     clang::CompilerInvocation *CI = new clang::CompilerInvocation();
-    clang::CompilerInvocation::CreateFromArgs(*CI, Args.begin(), Args.end(), *DiagsRef);
+    clang::CompilerInvocation::CreateFromArgs ( *CI, Args.begin(), Args.end(), *DiagsRef );
 
-    clang::LangOptions opts;
-    //TODO voir standard a donner ici pour le langage
-    CI->setLangDefaults(opts, clang::IK_CXX, clang::LangStandard::lang_cxx98);
-    //CI->getPreprocessorOutputOpts().ShowComments = 1;
-    //CI->getPreprocessorOutputOpts().ShowLineMarkers = 1;
+    //clang::LangOptions opts;
+//donner langage et standard depuis la ligne de commande
+    /*
+        if(useCpp)
+        {
 
-    AST = clang::ASTUnit::LoadFromCompilerInvocation(CI, DiagsRef);
+                CI->setLangDefaults ( opts, clang::IK_CXX, clang::LangStandard::lang_gnucxx98 );
+            opts.CPlusPlus = true;
+            opts.GNUMode = true;
+        }
+        else
+        {
+            CI->setLangDefaults ( opts, clang::IK_C, clang::LangStandard::lang_gnu99 );
+        }
+    */
 
+    AST = clang::ASTUnit::LoadFromCompilerInvocation ( CI, DiagsRef );
 
-//FIXME utyiliser visiteur approprié selon langage
-//options possibles : pour include et type de dialecte
     MyRecursiveASTVisitorCpp myvis;
-    
-    //MyRecursiveASTVisitor myvisC;
-
     myvis.ast = &AST->getASTContext();
-    myvis.TraverseDecl(AST->getASTContext().getTranslationUnitDecl());
+    myvis.TraverseDecl ( AST->getASTContext().getTranslationUnitDecl() );
 
-    if ( useCpp )
+    // use common c/c++ code to filter out free functions
+    std::vector<clang::FunctionDecl *> filteredFunctionList;
+
+    if ( funcToSkip.size() > 0 )
     {
-        // TODO filtering of functions and operations
-        // if a class has no operations generate nothing for it
-        //
-        writeFilesForCpp ( myvis.functionList, myvis.recordList,
-                           myvis.declList,
-                           outputPath, inputFile, hprefix, useQuotes );
+        std::vector<std::string> toSkip;
+        tokenizeString ( funcToSkip, toSkip, "," );
+
+        for ( std::vector<clang::FunctionDecl *>::iterator it2 = myvis.functionList.begin();
+                it2 != myvis.functionList.end(); ++it2 )
+        {
+            clang::FunctionDecl *one_fdecl = *it2;
+            bool shouldSkip = false;
+            std::string fname = one_fdecl->getQualifiedNameAsString();
+
+            for ( std::vector<std::string>::iterator it1 = toSkip.begin();
+                    it1 != toSkip.end(); ++it1 )
+            {
+                std::string toCompare = *it1;
+                if ( fname.compare ( toCompare ) == 0 )
+                {
+                    // note : could use an hashmap to avoid
+                    // the nested loop. In case I have huge header files.
+                    std::cout << "Skipping function " << fname
+                              << " as it is in the exclusion list." << std::endl;
+                    shouldSkip = true;
+                    break;
+                }
+            }
+            if ( shouldSkip == false )
+            {
+                filteredFunctionList.push_back ( one_fdecl );
+            }
+        }
     }
     else
     {
+        filteredFunctionList = myvis.functionList;
+    }
 
-        // filter out functions to skip before code generation
-        std::vector<clang::FunctionDecl *> filteredFunctionList;
+    // I can't filter class methods here because they're stored
+    // in a CXXRecordDecl and I'm not sure I can modify the list
+    // of operations of such a decl
+    // so let's go for code generation and filter last moment,
+    // when lists I control have been created
 
-        if ( funcToSkip.size() > 0 )
+    std::vector<clang::FunctionDecl *> keepFunctionList;
+    if ( funcToKeep.size() > 0 )
+    {
+        std::vector<std::string> toKeep;
+        tokenizeString ( funcToKeep, toKeep, "," );
+
+        for ( std::vector<clang::FunctionDecl *>::iterator it2 =
+                    filteredFunctionList.begin();
+                it2 != filteredFunctionList.end(); ++it2 )
         {
-            std::vector<std::string> toSkip;
-            tokenizeString ( funcToSkip, toSkip, "," );
-            for ( std::vector<clang::FunctionDecl *>::iterator it2 = myvis.functionList.begin();
-                    it2 != myvis.functionList.end(); ++it2 )
-            {
-                clang::FunctionDecl *one_fdecl = *it2;
-                bool shouldSkip = false;
-                std::string fname = one_fdecl->getNameAsString();
+            clang::FunctionDecl *one_fdecl = *it2;
+            bool shouldKeep = false;
+            std::string fname = one_fdecl->getQualifiedNameAsString();
 
-                for ( std::vector<std::string>::iterator it1 = toSkip.begin();
-                        it1 != toSkip.end(); ++it1 )
-                {
-                    std::string toCompare = *it1;
-                    if ( fname.compare ( toCompare ) == 0 )
-                    {
-                        // note : could use an hashmap to avoid
-                        // the nested loop. In case I have huge header files.
-                        shouldSkip = true;
-                        break;
-                    }
-                }
-                if ( shouldSkip == false )
-                {
-                    filteredFunctionList.push_back ( one_fdecl );
-                }
-            }
-        }
-        else
-        {
-            filteredFunctionList = myvis.functionList;
-        }
-
-        std::vector<clang::FunctionDecl *> keepFunctionList;
-        if ( funcToKeep.size() > 0 )
-        {
-            std::vector<std::string> toKeep;
-            tokenizeString ( funcToKeep, toKeep, "," );
             for ( std::vector<std::string>::iterator it1 = toKeep.begin();
                     it1 != toKeep.end(); ++it1 )
             {
-                std::cout << "keeping function " << *it1 << std::endl;
+                std::string toCompare = *it1;
+                if ( fname.compare ( toCompare ) == 0 )
+                {
+                    // note : could use an hashmap to avoid
+                    // the nested loop. In case I have huge header files.
+                    std::cout << "Keeping function " << fname
+                              << " as it is in the keep list." << std::endl;
+                    shouldKeep = true;
+                    break;
+                }
             }
-
-            for ( std::vector<clang::FunctionDecl *>::iterator it2 = filteredFunctionList.begin();
-                    it2 != filteredFunctionList.end(); ++it2 )
+            if ( shouldKeep == true )
             {
-                clang::FunctionDecl *one_fdecl = *it2;
-                bool shouldKeep = false;
-                std::string fname = one_fdecl->getNameAsString();
-
-                for ( std::vector<std::string>::iterator it1 = toKeep.begin();
-                        it1 != toKeep.end(); ++it1 )
-                {
-                    std::string toCompare = *it1;
-                    if ( fname.compare ( toCompare ) == 0 )
-                    {
-                        // note : could use an hashmap to avoid
-                        // the nested loop. In case I have huge header files.
-                        shouldKeep = true;
-                        break;
-                    }
-                }
-                if ( shouldKeep == true )
-                {
-                    keepFunctionList.push_back ( one_fdecl );
-                }
+                keepFunctionList.push_back ( one_fdecl );
             }
         }
-        else
-        {
-            keepFunctionList = filteredFunctionList;
-        }
+    }
+    else
+    {
+        keepFunctionList = filteredFunctionList;
+    }
 
-        // write the header file for the mock
+    // now code generation
+    if ( useCpp )
+    {
+        writeFilesForCpp ( keepFunctionList,
+                           myvis.recordList,
+                           myvis.declList,
+                           outputPath, inputFile, hprefix, useQuotes,
+                           funcToSkip, funcToKeep );
+    }
+    else
+    {
         writeFilesForC ( keepFunctionList, outputPath,
                          inputFile, hprefix, useQuotes );
     }
@@ -518,7 +485,7 @@ struct my_toupper
 };
 
 void tokenizeString ( const std::string &str,
-                      std::vector<std::string>& tokens,
+                      std::vector<std::string> &tokens,
                       const std::string &delimiters )
 {
     // Skip delimiters at beginning.
@@ -1206,12 +1173,30 @@ bool isFunctionVoid ( clang::FunctionDecl *f )
     }
 }
 
+//FIXME pour constructeur virtuel pur (ou destructeur)
+//je n'ai pas d ebody generé alors pb de link
 void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                         std::vector<clang::CXXRecordDecl *> recordList,
                         std::vector<clang::NamedDecl *> declList,
                         std::string &output, std::string &input_file,
-                        std::string prefix, bool useQuotes )
+                        std::string prefix, bool useQuotes,
+                        std::string &funcToSkip, std::string &funcToKeep )
 {
+    // split the functions to keep and the functions to skip
+    std::vector<std::string> toKeep;
+    std::vector<std::string> toSkip;
+
+    std::vector<clang::FunctionDecl *> keepFunctionList;
+    if ( funcToKeep.size() > 0 )
+    {
+        tokenizeString ( funcToKeep, toKeep, "," );
+    }
+    std::vector<clang::FunctionDecl *> skipFunctionList;
+    if ( funcToSkip.size() > 0 )
+    {
+        tokenizeString ( funcToSkip, toSkip, "," );
+    }
+
     // the key is a string. Associated to a vector of vectors of strings (the split namespaces)
     typedef std::map< std::string, NameMap * > MyMapType;
     MyMapType nsMap;
@@ -1256,6 +1241,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
     std::map<std::string, int> overloadMap;
 
     //  extract functions informations
+	// functions are already filtered at that point
     for ( std::vector<clang::FunctionDecl *>::iterator it = functionList.begin();
             it != functionList.end(); ++it )
     {
@@ -1302,9 +1288,81 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             OpFunction *new_func = extractFunction ( *it2, mOverloadMap, nsMap );
             if ( new_func )
             {
-                new_rec->methods.push_back ( new_func );
+
+
+std::cout << "trouvé methode " << new_func->qualifiedName << " pour generation\n";
+
+
+		// filter variadic methods
+		// TODO don't filter variadics. Instead write mock code
+		// that does not store parameters and callbacks
+		// meaning that we just store the return value and we don't use
+		// any matchers. If matchers are assigned they will just be ignored
+		// (or maybe only on fixed parameters?)
+		if(new_func->isVariadic)
+		{
+			std::cout << "Filtering method " << new_func->qualifiedName << " as it is variadic\n";
+			delete new_func;
+		}
+		else
+		{
+                	new_rec->methods.push_back ( new_func );
+		}
             }
         }
+
+        // filter methods
+        if ( toSkip.size() > 0 )
+        {
+            for ( std::vector<std::string>::iterator it1 = toSkip.begin();
+                    it1 != toSkip.end(); ++it1 )
+            {
+                std::string toCompare = *it1;
+
+                for ( std::vector<OpFunction *>::iterator it2 = new_rec->methods.begin();
+                        it2 != new_rec->methods.end(); ++it2 )
+                {
+                    std::string fname = ( *it2 )->qualifiedName;
+                    if ( fname.compare ( toCompare ) == 0 )
+                    {
+                        std::cout << "Skipping method " << fname <<
+                                  " because it is in the exclusion list." << std::endl;
+                        it2 = new_rec->methods.erase ( it2 );
+                    }
+                }
+            }
+        }
+        else if ( toKeep.size() > 0 )
+        {
+		std::vector<OpFunction *> methodsToKeep;
+
+		for ( std::vector<std::string>::iterator it1 = toKeep.begin();
+                    it1 != toKeep.end(); ++it1 )
+            {
+                std::string toCompare = *it1;
+
+                for ( std::vector<OpFunction *>::iterator it2 = new_rec->methods.begin();
+                        it2 != new_rec->methods.end(); ++it2 )
+                {
+                    std::string fname = ( *it2 )->qualifiedName;
+                    if ( fname.compare ( toCompare ) == 0 )
+                    {
+                        std::cout << "Keeping method " << fname <<
+                                  " because it is in the keep list." << std::endl;
+                        //it2 = new_rec->methods.erase ( it2 );
+			methodsToKeep.push_back(*it2);
+                    }
+                }
+            }
+		if(methodsToKeep.size() > 0)
+		{
+			new_rec->methods.clear();
+			new_rec->methods = methodsToKeep;
+		}
+        }
+
+
+        // don't generate code for the class if it does not contain any method
         if ( new_rec->methods.size() == 0 )
         {
             delete new_rec;
@@ -1488,8 +1546,49 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             {
                 OpFunction *one_func = *itr;
 
-                if ( ( one_func->isConstructor == false ) && ( one_func->isDestructor == false )
-                        && ( one_func->isOperatorOverload == false ) )
+		bool shouldGenerate = true;
+
+		if (one_func->isOperatorOverload == true)
+			shouldGenerate = false;
+
+		if (one_func->isConstructor == true)
+		{
+			//FIXME pure virtual n'est pas rensiegné
+			// faire ds extract function
+			// si pure virtual je ne devrais rien générer
+			// car generation doit etre associee a une sous classe
+			//proposant par ex la methode en virtual ou en concret
+			//idem pour destructor
+			//quitte ds la generation a creer un header pour classe
+			//derivant de la classe de base et proposant la methode en
+			//virtual ou concret, pour que la génération se fasse
+			
+			//d'ailleurs c'est valable pour toutes les methodes:
+			//si pure virtual je devrais la filtrer
+			//probleme ds ce cas : je dois toujours mocker
+			//la classe concrete plutot que la classe mere contenant
+			//les methodes virtuelles pures?
+
+
+			//si je ne connais pas le type exact de la classe reçue
+			//(j'ai un type abstrait en parametre) alors comment
+			//savoir quelle fonction de mock appeler?
+
+			//FIXME
+			//ai-je le droit de fournir une implementation en nC++
+			//pour une methode virtuelle pure?
+			//ex void foo() = 0;
+
+			//void foo() {} avec du code de mock
+
+			//si oui alors je peux implementer un mock pour
+			//methode virtuelle pure incluant constructeur (pour constructeur
+			//peut etre simplifié : contenu vide)
+		}
+ 
+                /*if ( ( one_func->isConstructor == false ) && ( one_func->isDestructor == false )
+                        && ( one_func->isOperatorOverload == false ) )*/
+		if(shouldGenerate == true)
                 {
                     std::string ns_left;
                     std::string ns_right;
@@ -1636,7 +1735,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     if ( !one_func->isStatic )
                     {
                         hout << "    static void " << one_func->name << "_MockWithInstanceCallback(";
-                       
+
                         hout << "OPMOCK_";
                         std::string fqname = one_func->qualifiedName;
                         std::replace ( fqname.begin(), fqname.end(), ':', '_' );
@@ -1934,6 +2033,8 @@ OpFunction::OpFunction()
     this->isDestructor = false;
     this->isOperatorOverload = false;
     this->isTemplate = false;
+	this->isVirtual = false;
+	this->isPureVirtual = false;
 }
 
 OpParameter::OpParameter()
@@ -1974,7 +2075,7 @@ std::string getStructReturnType ( clang::FunctionDecl *fdecl, bool &isReference 
 }
 
 OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
-                              std::map< std::string, NameMap * > & nsmap,
+                              std::map< std::string, NameMap * > &nsmap,
                               int number )
 {
     std::string pname = pdecl->getNameAsString();
@@ -2004,7 +2105,7 @@ OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
     //
     const clang::Type *orgType = retType.getTypePtrOrNull();
     const clang::TemplateSpecializationType *ttype = clang::dyn_cast< clang::TemplateSpecializationType> ( orgType );
-    if(ttype)
+    if ( ttype )
     {
         std::cout << "argument " << pname << " est template specialisation\n";
     }
@@ -2013,11 +2114,11 @@ OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
 
     clang::QualType qtype = retType.getCanonicalType();
     const clang::Type *realType = qtype.getTypePtrOrNull();
-    
-    
-    
+
+
+
     const clang::TemplateSpecializationType *ttype2 = clang::dyn_cast< clang::TemplateSpecializationType> ( qtype );
-    if(ttype2)
+    if ( ttype2 )
     {
         std::cout << "argument " << pname << " est template specialisation\n";
     }
@@ -2068,8 +2169,8 @@ OpRecord::OpRecord()
 }
 
 OpFunction *extractFunction ( clang::FunctionDecl *fdecl,
-                              std::map<std::string, int> & overloadMap,
-                              std::map< std::string, NameMap * > & nsMap )
+                              std::map<std::string, int> &overloadMap,
+                              std::map< std::string, NameMap * > &nsMap )
 {
     OpFunction *new_func = NULL;
 
@@ -2735,7 +2836,7 @@ std::string OpFunction::buildSignature ( OpRecord *one_rec )
     result += "(";
     result += buildParameters();
     result += ")";
-    if(this->isConst)
+    if ( this->isConst )
     {
         result += " const";
     }

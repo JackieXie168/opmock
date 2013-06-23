@@ -27,10 +27,6 @@ namespace space1
   class Class1
   {
   public:
-	// These 2 constructors should be skipped when generating code
-	Class1(int i);
-	Class1(double j);
-
     int func1(int i, int j);
 
     // an overloaded function. Defines 2 times the same symbol!
@@ -100,7 +96,10 @@ namespace OTDRProxy
     // Operation ConfigLine
     virtual void ConfigLine(const OTDRProxy::T_ConfigLine& configLine,
   			    Boolean& result,
-  			    OTDRProxy::InvocationAsync& invocation);  
+  			    OTDRProxy::InvocationAsync& invocation,
+			    int & ref1,
+			    char ** array [][10],
+			    const long double ** array2 [][10]);  
   protected:
     
   private:
@@ -173,15 +172,29 @@ template <typename T, typename U=float, template <typename X=int, typename Y=int
 };
 */
 
-//a c style function inside a namaspace, to be filtered
-namespace nn4
+// one unfiltered class to test overloaded operations code generation
+namespace one
 {
-namespace nn5
-{
-	int function1(int bla);
-	char function2(char bli);
-}	
+	namespace two
+	{
+		class Three
+		{
+		public:
+    			int funcOverload(int i, int j);
+    			int funcOverload(float a, char *b);
+			int funcOverload(float a, char *b, char *ptr);
+
+			// I have no declared constructors
+			// none should appear in the generated code
+
+//test
+			Three();
+
+			~Three();
+		};
+	}
 }
+
 
 
 

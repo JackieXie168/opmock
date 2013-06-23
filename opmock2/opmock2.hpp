@@ -62,8 +62,8 @@ public:
     std::string qualifiedName;
     std::vector<std::string> ns;
     std::vector<OpFunction *> methods;
-    std::vector<OpFunction *> constructors;
-    std::vector<OpFunction *> destructors;
+    //std::vector<OpFunction *> constructors;
+    //std::vector<OpFunction *> destructors;
     bool isStruct;
     bool isTemplate;
     OpRecord();
