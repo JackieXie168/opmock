@@ -75,6 +75,7 @@
 #include <clang/AST/Type.h>
 
 #include <clang/Frontend/ASTUnit.h>
+#include <llvm/Support/CommandLine.h>
 
 #include "opmock2.hpp"
 
@@ -238,8 +239,22 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
     return true;
 }
 
+// declare globals to hold command line parameters
+llvm::cl::opt<std::string> clOutputPath("o", llvm::cl::desc("Specify output path for code generation."), llvm::cl::value_desc("path"), llvm::cl::Required);
+llvm::cl::opt<std::string> clInputFile("i", llvm::cl::desc("Specify input header with absolute or relative path."), llvm::cl::value_desc("input header"), llvm::cl::Required);
+llvm::cl::opt<std::string> clFuncToSkip("s", llvm::cl::desc("[Optional] Comma separated list of fully scoped functions/methods to skip."), llvm::cl::value_desc("skip list"), llvm::cl::Optional);
+llvm::cl::opt<std::string> clFuncToKeep("k", llvm::cl::desc("[Optional] Comma separated list of fully scoped functions/methods to keep."), llvm::cl::value_desc("keep list"), llvm::cl::Optional);
+llvm::cl::opt<std::string> clHPrefix("p", llvm::cl::desc("[Optional] Prefix to include the original header in the mocked header."), llvm::cl::value_desc("header prefix"), llvm::cl::Optional);
+llvm::cl::opt<bool> clUseQuotes("q", llvm::cl::desc("[Optional] include the original header with quotes \"\" instead of <> by default."), llvm::cl::value_desc("use quotes"), llvm::cl::Optional);
+llvm::cl::opt<bool> clUseCpp("cpp", llvm::cl::desc("[Optional] Define the header as a c++ header. By default headers are parsed as C code."), llvm::cl::value_desc("parse as C++"), llvm::cl::Optional);
+llvm::cl::list<std::string> clIncludes("I", llvm::cl::desc("[Optional] Include path for additional headers. May be used multiple times."), llvm::cl::value_desc("include path"), llvm::cl::ZeroOrMore, llvm::cl::Prefix);
+llvm::cl::list<std::string> clMacros("D", llvm::cl::desc("[Optional] Define a pre processor macro. May be used multiple times."), llvm::cl::value_desc("define macro"), llvm::cl::ZeroOrMore, llvm::cl::Prefix);
+llvm::cl::opt<std::string> clStandard("std", llvm::cl::desc("Specify language standard, for example c++98 for C++."), llvm::cl::value_desc("C or C++ standard"), llvm::cl::Optional);
+
 int main ( int argc, char **argv )
 {
+    llvm::cl::ParseCommandLineOptions(argc, argv, "Opmock2 : a mocking framework for C and C++\n");
+
     using clang::CompilerInstance;
     using clang::TargetOptions;
     using clang::TargetInfo;
@@ -252,6 +267,7 @@ int main ( int argc, char **argv )
     std::string funcToKeep;
     bool useQuotes = false;
     bool useCpp = false;
+    std::string langStandard;
 
     // parse command line options
     // options specific to opmock are:
@@ -264,72 +280,71 @@ int main ( int argc, char **argv )
     // -s to give a comma separated list of functions/method to skip when generating code
     // -k to give a comma separated list of functions/method to keep when generating code
     //
-    // All other options are passed verbatim to clang, like -I, -D or compiler flags to
-    // specify a specific flavor of C or C++. This includes options if you want to parse
-    // headers files using GNU or MS extensions.
-
-    int i = 1;
-    while ( i < argc )
-    {
-        //input header to be parsed
-        if ( strcmp ( argv[i], "-i" ) == 0 )
-        {
-            inputFile = argv[i + 1];
-            i += 2;
-        }
-        // output path
-        else if ( strcmp ( argv[i], "-o" ) == 0 )
-        {
-            outputPath = argv[i + 1];
-            i += 2;
-        }
-        // prefix for the header
-        else if ( strcmp ( argv[i], "-p" ) == 0 )
-        {
-            hprefix = argv[i + 1];
-            i += 2;
-        }
-        // use quotes to include the original header file
-        // in the generated code
-        else if ( strcmp ( argv[i], "-q" ) == 0 )
-        {
-            useQuotes = true;
-            i++;
-        }
-        // skip a list of comma separated functions
-        else if ( strcmp ( argv[i], "-s" ) == 0 )
-        {
-            funcToSkip = argv[i + 1];
-            i += 2;
-        }
-        // keep a list of comma separated functions (and skip all others)
-        // should be mutually exclusive of -s but can still be combined
-        else if ( strcmp ( argv[i], "-k" ) == 0 )
-        {
-            funcToKeep = argv[i + 1];
-            i += 2;
-        }
-        else if ( strcmp ( argv[i], "-cpp" ) == 0 )
-        {
-            useCpp = true;
-            i++;
-        }
-        else
-        {
-            // default case : not an opmock option, so let's
-            // build a vector of options to be passed to clang
-            clangParamsList.push_back ( argv[i] );
-            i++;
-        }
-    }
-
-    //TODO check mandatory parameters
+    inputFile = clInputFile;
+    outputPath = clOutputPath;
+    hprefix = clHPrefix;
+    funcToSkip = clFuncToSkip;
+    funcToKeep = clFuncToKeep;
+    useQuotes = clUseQuotes;
+    useCpp = clUseCpp;
+    langStandard = clStandard;
 
     // build the arguments for clang, removing arguments specific to opmock
     // +1 arg because I need to put the file to be parsed first
+    
+    // add include path. I need to rebuild the -I in front of each option,
+    // as it has been removed by arguments parsing.
+    std::vector<std::string> newIncludes;
+    for (unsigned i = 0; i != clIncludes.size(); ++i)
+    {
+        std::string newString = "-I" + clIncludes[i];
+        newIncludes.push_back(newString);
+    }
+    
+    std::vector<std::string> newMacros;
+    for (unsigned i = 0; i != clMacros.size(); ++i)
+    {
+        std::string newString = "-D" + clMacros[i];
+        newMacros.push_back(newString);
+    }
+
+    std::vector<std::string> newOptions;//miscellanous options
+     if(useCpp)
+    {
+        newOptions.push_back(std::string("-x"));
+        newOptions.push_back(std::string("c++"));
+    }
+
+     if(langStandard.length() > 0)
+     {
+         newOptions.push_back("-std=" + langStandard);
+     }
+
+
+    // first parameter is the header file to parse/compile
     clangParamsList.insert ( clangParamsList.begin(), inputFile.c_str() );
+
+    // append the includes
+    for (unsigned i = 0; i != newIncludes.size(); ++i)
+    {
+        clangParamsList.push_back(newIncludes[i].c_str());
+    }
+    
+    // append the macros
+    for (unsigned i = 0; i != newMacros.size(); ++i)
+    {
+        clangParamsList.push_back(newMacros[i].c_str());
+    }
+
+    // append other options for C++ and dialect
+    for (unsigned i = 0; i != newOptions.size(); ++i)
+    {
+        clangParamsList.push_back(newOptions[i].c_str());
+    }
+
+
     const char **argsPtr = new const char *[clangParamsList.size() + 1];
-    i = 0;
+    int i = 0;
     for ( std::vector<const char *>::iterator it = clangParamsList.begin(); it != clangParamsList.end(); ++it )
     {
         argsPtr[i] = *it;
@@ -349,22 +364,6 @@ int main ( int argc, char **argv )
 
     clang::CompilerInvocation *CI = new clang::CompilerInvocation();
     clang::CompilerInvocation::CreateFromArgs ( *CI, Args.begin(), Args.end(), *DiagsRef );
-
-    //clang::LangOptions opts;
-    //everything from the command line
-    /*
-        if(useCpp)
-        {
-
-                CI->setLangDefaults ( opts, clang::IK_CXX, clang::LangStandard::lang_gnucxx98 );
-            opts.CPlusPlus = true;
-            opts.GNUMode = true;
-        }
-        else
-        {
-            CI->setLangDefaults ( opts, clang::IK_C, clang::LangStandard::lang_gnu99 );
-        }
-    */
 
     AST = clang::ASTUnit::LoadFromCompilerInvocation ( CI, DiagsRef );
 
@@ -1347,7 +1346,6 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     {
                         std::cout << "Keeping method " << fname <<
                                   " because it is in the keep list." << std::endl;
-                        //it2 = new_rec->methods.erase ( it2 );
                         methodsToKeep.push_back(*it2);
                     }
                 }
