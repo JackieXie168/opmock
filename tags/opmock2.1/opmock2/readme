@@ -1,0 +1,16 @@
+This is the very first version of Opmock 2.
+Opmock 1 was based on SWIG and Java, plus some shell scripts;
+Opmock 2 is based on Clang/LLVM and is fully written in C++.
+The benefits are:
+
+-can parse all of the C and C++ syntax, including obscure constructs
+-much faster
+-single executable, should allow for easy to use cross platform binaries
+(even if for now there are just binaries for Linux)
+-And in the future, this opens the door to nifty improvements
+like code refactoring, header auto cleaning, and so on.
+
+This first release is dedicated to the C language ONLY.
+Don't expect to parse C++ header with it. C++ support will
+come eventually, but it will be different of Opmock 1 and hopefully
+more powerful.

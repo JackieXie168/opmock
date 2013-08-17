@@ -1,0 +1,218 @@
+
+v 0.9.2
+Bug fix : if the header file name contains a '-' then the generated header
+contains an illegal name for an #ifdef declaration. Now '-' are converted to '_'
+Bux fix : if a class has no operations to generate after filtering,
+no code should be generated for it as it results in compilation warnings.
+--
+v 0.9.1
+Fixed a code generation bug when a function has anonymous const parameters.
+(tracker 3531066)
+Thank's go to Jean Samoise for reporting this bug.
+--
+v 0.9
+I grew jealous of Google Chrome and their never ending version bumps.
+So I decided it was time to go to 0.9 :-)
+2 bugs fixes in this release:
+-Yet another bug on consts with C++ functions of the kind const int foo(float j) const;
+-A bug when a function returns a templated parameter like std::vector<std::string> boo();
+There were spurious parenthesis in the generated code.
+--
+v 0.8.9
+Oh my bad. Fixed many bugs in this release thank's to the fellow users!
+-one bug in cmp_cstring : the error message was not printing the 2 string properly in case they're not equal.
+-bugs in the ASSERT macros : if macros were nested in the ASSERT macro itself, "bad things" tm could happen.
+Now macros are protected against this.
+--
+v 0.8.8
+Fixed a bug with the --skip-funct option : constructors and destructors were not filtered out.
+Fixed a bug when a parameter name was the same than the end of the a const type.
+For example : void foo(const M_MyData MyData); was resulting in a truncation of the type in the generated code
+(bad regular expression in the code). Note that however naming a parameter after a type is not a good idea.
+--
+v 0.8.7
+Added negative versions of all assert macros. Example OP_ASSERT_NOT_EQUAL_INT.
+Added an example for mixed use of mocks and matchers. have a look to the c_matchers folder! Updated documentation.
+--
+v 0.8.6
+Fixed a code generation bug with methods returning a const return value.
+--
+v 0.8.5
+Fixed a code generation bug with functions returning a const return value.
+--
+v 0.8.4
+Fix a bug with pointers comparisons using cmp_ptr.
+In the generated code, pointers were handled as a special case, because the value of the pointer was stored,
+while for all other parameters a pointer to the parameter is stored. This is because matchers can only accept
+void * parameters as "generic" type (design choice : the framework has to work both in C and C++).
+
+When a pointer was typedef'ed, opmock could not get the "real" type, and was generating code that was
+not compatible with the way cmp_ptr works.
+
+the code generation as well as cmp_ptr and cmp_string have been updated. Make sure you use the latest
+version of opmock.c and opmock.h in your builds as they are touched by the changes.
+--
+v 0.8.3
+Patch from Dave Rooney (thank's Dave!). Solves a compilation error when using very old compilers (gcc 2.95 to name it).
+--
+v 0.8.2
+Modified the refresh_tests.sh script so that it works whith bash 3.
+But you should really update to bash 4 if you can :-)
+Fixed the macro OP_ASSERT_EQUAL_BUFFER. If it was used more than one time in the same test this was causing compilation error (multiple definitions of the same variable).
+--
+v 0.8.1
+Fixed another code generation error when an operation has a prototype like const int operation(...) const;
+The const at the beginning was causing problems.
+--
+v 0.8
+Fixed a code generation error when an operation has a prototype like int operation(...) const;
+The const at the end was causing problems.
+
+Added a few macros in opmock.h for unsigned and signed types (short, ushort, long, ulong, uchar).
+--
+v 0.7.9
+Fixed a nasty code generation problem : functions/methods with default values for arguments were resulting
+in incorrect generated code. This unveiled additional (now fixed) bugs with bad generation of namespaces.
+--
+v 0.7.8
+Fixed a problem with the OP_VERIFY* macros. They must fail the test if a mock has been configured but not called often enough in the scope of a test.
+This is now fixed.
+--
+v 0.7.7
+Fixed a code generation bug when using twice the const keyword in a function argument,
+for example 'const unsigned long long ** const param'.
+Cleaned up a little bit the samples.
+--
+v 0.7.6
+Fixed a bug in cmp_buffer : his was returning 0 (no error) if the first byte
+of 2 buffers was different.
+--
+v 0.7.5
+Modified the opmock.sh script and added a new example for generation of mocks
+with complex header includes. This fixes the situation where:
+-types declarations in the same name space are split in multiple headers
+
+Opmock was not generating proper code in this case.
+have a look to the sample recursive_include, don't forget to update your opmock.sh,
+and have a look to the documentation, section 9.
+--
+v 0.7.4
+Improved some assertions, added UINT, BYTE, UBYTE types to print numerical values
+instead of char values. Added a OP_VERIFY_NO_ORDER macro to allow running the verify phase
+but avoid failing the test if operation calls were not made in the right order.
+Some documentation updates.
+--
+v 0.7.3
+Added call order verification when using a mock.
+For example, if your code is supposed to call lock() THEN unlock(),
+but it actually calls unlock() then lock(), the VERIFY macro will fail.
+This can be used as well with google test or anything else : just check if there are errors
+after a test is run.
+--
+v 0.7.2
+Added a cmp_short comparator. Thanks to Mathias D. For sending this patch!
+--
+v 0.7.1
+Added a Junit compatible xml output for tests suites, when the Opmock unit testing framework is used.
+Creates a TEST-test.xml file in the test folder. Of course, the junit xml format has many shortcomings with C/C++
+as it insists on having classes or packages, but it should be compatible with common CI servers like Hudson.
+--
+v 0.7
+Version bump! There are some breaking changes in this release, so it's worth it.
+All code/options related to hybrid mocks (where you could have both the original implementation
+and a mocked implementation of a function/class in the same build) have been removed.
+They were not used and were not a very good idea to start with. Less crap in the code.
+
+The code generation for C++ has changed : you don't need any more to modify your
+existing header files to insert 'renaming' macros.
+If your headers have been modified and use macros like OPMOCK_CLASS, simply remove the macros.
+The side effect is that you will have to modify a bit existing tests. Example:
+
+Before:
+
+foo:boo:MyClass::myFunction_ExpectAndReturn(...);
+
+After:
+
+foo:boo:MyClass_Mock::myFunction_ExpectAndReturn(...);
+
+This is the same, except that you need to post fix the class name with _Mock.
+
+Another change is a simplification for overloaded operations or functions :
+all overloaded versions of an operation are mocked the same way, as the different parameters
+are enough to distinguish them. Before, there was a specific numbering for each overload.
+
+Last, the typedefs for call backs have been modified a bit. When implementing call backs
+for overloaded functions/operations, the typedefs will have different names, with a counter appended.
+Be sure to implement the correct signature by looking at the generated hpp files.  
+
+--
+v 0.6.3
+bug fix : free functions in C++ with default parameter values were resulting in incorrect generated code.
+This is now handled as a function overload. Removed the *extern* keyword in generated function body code.
+--
+v 0.6.2
+svn r122
+bug fix : static operations in a class were resulting in incorrect generated code.
+Fixes tracker issue 3290183.
+--
+v 0.6.1
+Added a script to generate automatically your test suites and main.c files.
+Have a look to the documentation and to the test_gen example for detailed instructions.
+--
+v 0.6
+There are so many changes in this release, thank's to user feedback, that it deserves
+a version bump !
+The internal structure of the generated code has been modified quiet a lot.
+The good news is that this makes the tests simpler:
+-There's no need to call manually any mock reset function anymore. All mocks
+are reset globally before running a test. If you use Reset functions in your tests,
+have a quick look to the manual. You'll see that things are much simpler now.
+-There's no need to call manually any mock verify function anymore. All mocks
+are verified globally after running a test. This means as well that there are no more
+side effects from one test to another when a mock is not properly configured
+(for example, called the wrong number of times).
+-The OP_VERIFY() macro does not take parameters anymore. Calling this macro
+at the end of your test means that you want to fail the test if a mock error
+has been detected (bad number of calls, bad parameters...). Not calling this
+macro means that you're not interested in the verify phase.
+-Lots of changes in the test suite
+-Lots of updates in the documentation
+-Miscellanous syntax changes. Have a look to the documentation for details.
+
+Many thanks go to Glenn Waters, who contributed a significant part of these patches.
+
+--
+v 0.5.7
+Fixed a regression : opmock was crashing when generating code with a C function
+taking a void parameter, like foo(void);
+--
+v 0.5.6 
+Improved the way the verify macros and functions work. 
+Now, if one calls OP_VERIFY(function) this will fail the test:
+ -if the number of calls to the mock was not correct 
+ -or if at least one of the calls to the mock had wrong parameters 
+ -or if the mock was called with no configured behavior (ie empty call stack) 
+ 
+ Using this macro/these functions is still optional, but can help when mocks are used 
+ rather than callback functions. 
+-- 
+v 0.5.5 
+Fixed 2 bugs: 
+-generate correct code when functions use anonymous parameters 
+-generate correct code when a function parameter is a function pointer AND has a void parameter. 
+-- 
+v 0.5.4 Fixed a bug in the OP_ASSERT_TRUE macro. Was returning wrong values in some cases.
+--
+v 0.5 3
+Fixed bug in command line splitting that could lead to an infinite loop when launching opmock.
+--
+v 0.5 2
+Added code generation for C++ non member functions, with or without a namespace.
+--
+v 0.5.1
+Fixed a code generation regression : when a function parameter was a const array (like const MyType my_array[]),
+the parameter was not generated properly in ExpectAndReturn mock functions.
+--
+v 0.3.7
+Fixed a major bug where overloaded C++ operations were resulting in incorrect generated code.
