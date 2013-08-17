@@ -1,0 +1,12 @@
+v 0.5 3
+Fixed bug in command line splitting that could lead to an infinite loop when launching opmock.
+--
+v 0.5 2
+Added code generation for C++ non member functions, with or without a namespace.
+--
+v 0.5.1
+Fixed a code generation regression : when a function parameter was a const array (like const MyType my_array[]),
+the parameter was not generated properly in ExpectAndReturn mock functions.
+--
+v 0.3.7
+Fixed a major bug where overloaded C++ operations were resulting in incorrect generated code.

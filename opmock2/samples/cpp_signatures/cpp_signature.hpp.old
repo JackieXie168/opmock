@@ -1,0 +1,48 @@
+
+struct Something
+{
+	void *ptr;
+	double dval;
+	int ival;
+	int bla1(double foo);
+};
+
+// class with no namespace
+class Class1
+{
+	public:
+		Class1();
+	protected:
+		int function1(int p1, char p2, struct Something p3, struct Something & p4, struct Something * p5);
+	private:
+		char function2(char (*par1)(int, char));
+};
+
+// with namespace
+namespace n1
+{
+namespace n2
+{
+	class Class2
+	{
+		public:
+		char *function1(int foo, char, double & bla, double &);
+		int function2(int x);
+		int function2(int x, double y);
+		virtual char function3();
+                static int oneStaticFunc(int i);
+	};
+
+	double function4();
+	double function4(int j);
+	int function4(char x);
+	//virtual int function4(char *ptr); illegal case
+	//char function4(); illegal case : parameters must differ
+}
+}
+
+char function5();
+
+char *function6();
+char & function7();
+

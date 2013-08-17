@@ -1,0 +1,870 @@
+Found a 14 line (104 tokens) duplication in the following files: 
+Starting at line 272 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 376 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+		String isConst = "";
+
+		String ptAndRef = "";
+		String[] tab = tmp.split("&");
+
+		if (tab.length > 1) {
+			for (int i = 0; i < tab.length; i++) {
+				if (tab[i].compareTo("p") == 0) {
+					ptAndRef = "*" + ptAndRef;
+				} else if (tab[i].compareTo("r") == 0) {
+					ptAndRef = "&" + ptAndRef;
+				} else if (tab[i].compareTo("q(const)") == 0) {
+					isConst = "const ";
+				}
+=====================================================================
+Found a 12 line (100 tokens) duplication in the following files: 
+Starting at line 72 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 98 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+	private List<Element> getElementsWithName(Node oneNode, String name) {
+		List<Element> res = new ArrayList<Element>();
+		NodeList list = oneNode.getChildNodes();
+		for (int i = 0; i < list.getLength(); i++) {
+			Node node = list.item(i);
+			if (node.getNodeType() == Node.ELEMENT_NODE) {
+				Element element = (Element) node;
+				if (element.getNodeName().compareTo(name) == 0) {
+					res.add(element);
+				}
+			}
+		}
+=====================================================================
+Found a 21 line (74 tokens) duplication in the following files: 
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 288 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+			itr = params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+				res += oneParam.name;
+				if (itr.hasNext()) {
+					res += ", ";
+				}
+			}
+			res += ");\n";
+
+			if (isVoid == true) {
+				res += "        return;\n";
+			}
+			res += "    }\n\n";
+		}
+
+		// check if we are expecting calls (behavior programmed)
+		res += "    if (" + structName + ".expectedCalls == 0)\n";
+		res += "    {\n";
+		res += "        printf (\"WARNING : unexpected call of ";
+		res += functionName + ", returning random value.\\n\");\n";
+=====================================================================
+Found a 25 line (66 tokens) duplication in the following files: 
+Starting at line 396 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 343 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+			res += "' when calling " + functionName + " (call %d)\\n\", ";
+			res += structName + ".actualCalls);\n";
+			res += "        }\n";
+		}
+		res += "    }\n\n";
+
+		// shift on the left the calls array
+		res += "    int opmock_i;\n";
+		res += "    for(opmock_i = 1; opmock_i < " + structName
+				+ ".expectedCalls; opmock_i++)\n";
+		res += "    {\n";
+		res += "        " + structName + ".calls[opmock_i - 1] = " + structName
+				+ ".calls[opmock_i];\n";
+		res += "    }\n\n";
+
+		res += "    " + structName + ".expectedCalls--;\n";
+
+		if (isVoid == false) {
+			res += "    return actual_res;\n";
+		}
+
+		res += "}\n\n";
+
+		return res;
+	}
+=====================================================================
+Found a 7 line (60 tokens) duplication in the following files: 
+Starting at line 277 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 346 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+			if (tab.length > 0) {
+				for (int i = 0; i < tab.length; i++) {
+					if (tab[i].compareTo("p") == 0) {
+						ptAndRef = "*" + ptAndRef;
+					} else if (tab[i].compareTo("r") == 0) {
+						ptAndRef = "&" + ptAndRef;
+					}
+=====================================================================
+Found a 13 line (59 tokens) duplication in the following files: 
+Starting at line 381 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 326 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += "        if (" + structName + ".calls[0]." + oneParam.name
+					+ " != ";
+
+			// if the input parameter has a [ in it that's an array :
+			// we need to cast it to a void * before comparing the two values
+			if (oneParam.value.indexOf("[") != -1) {
+				res += "(void *) ";
+			}
+
+			res += oneParam.name;
+=====================================================================
+Found a 14 line (58 tokens) duplication in the following files: 
+Starting at line 49 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 467 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		res += className + "::" + functionName + " (";
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			String s = itr.next().value;
+			res += s;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+		res += ")";// TODO refactor this
+		return res;
+	}
+
+	public String getCppExpectAndReturnPrototype() {
+=====================================================================
+Found a 12 line (52 tokens) duplication in the following files: 
+Starting at line 130 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 437 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+				boolean isClass = false;
+
+				List<Element> attributeLst = getElementsWithName(attributes,
+						"attribute");
+
+				for (Element attributeElmnt : attributeLst) {
+
+					// get the attributes
+					String attrName = attributeElmnt.getAttribute("name");
+					String attrValue = attributeElmnt.getAttribute("value");
+
+					if (attrName.compareTo("name") == 0) {
+=====================================================================
+Found a 10 line (50 tokens) duplication in the following files: 
+Starting at line 501 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 574 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getVerifyBodies() {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+			res += "void ";
+			res += className + "::" + oneFunc.functionName
+					+ "_VerifyMock()\n{\n";
+=====================================================================
+Found a 11 line (50 tokens) duplication in the following files: 
+Starting at line 293 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 389 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+				}
+			}
+		}
+		if (ptAndRef.length() > 0) {
+			result = ptAndRef + " ";
+		}
+		if (tab.length > 0) {
+			result = tab[tab.length - 1] + " " + result;
+		} else {
+			result = tmp;
+		}
+=====================================================================
+Found a 9 line (49 tokens) duplication in the following files: 
+Starting at line 87 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 125 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			String s = itr.next().value;
+			res += s;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+		if (params.size() > 0) {
+=====================================================================
+Found a 9 line (49 tokens) duplication in the following files: 
+Starting at line 472 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 492 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 512 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+						CFunction oneFunction = getFunctionDescription(destructorElmnt);
+						if (oneFunction != null) {
+							if (oneFunction.access.compareTo("public") != 0) {
+								System.out.println("WARNING : operation "
+										+ className + "::"
+										+ oneFunction.functionName + " is "
+										+ oneFunction.access
+										+ " so it can't be mocked.\n");
+							} else {
+=====================================================================
+Found a 11 line (48 tokens) duplication in the following files: 
+Starting at line 728 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 517 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (returnValue.compareTo("void") != 0) {
+			res += "    " + structName + ".calls[";
+			res += structName + ".expectedCalls].";
+			res += "return_value = to_return;\n";
+		}
+
+		res += "    " + structName + ".calls[";
+		res += structName + ".expectedCalls].check_params = 0;\n";
+		
+		res += "    " + structName + ".expectedCalls++;\n";
+		res += "}\n\n";
+=====================================================================
+Found a 13 line (48 tokens) duplication in the following files: 
+Starting at line 648 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 204 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (returnValue.compareTo("void") != 0) {
+			res += "    " + structName + ".calls[";
+			res += structName + ".expectedCalls].";
+			res += "return_value = to_return;\n";
+		}
+
+		// specify that we do want to test the parameters when the function is
+		// called
+		res += "    " + structName + ".calls[";
+		res += structName + ".expectedCalls].check_params = 1;\n";
+		
+		res += "    " + structName + ".expectedCalls++;\n";
+		res += "}\n\n";
+=====================================================================
+Found a 8 line (47 tokens) duplication in the following files: 
+Starting at line 50 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 87 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			String s = itr.next().value;
+			res += s;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+=====================================================================
+Found a 8 line (45 tokens) duplication in the following files: 
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 445 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		Iterator<CParameter> itr = oneFunc.params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += oneParam.name;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+=====================================================================
+Found a 8 line (43 tokens) duplication in the following files: 
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 288 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+			itr = params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+				res += oneParam.name;
+				if (itr.hasNext()) {
+					res += ", ";
+				}
+			}
+=====================================================================
+Found a 9 line (43 tokens) duplication in the following files: 
+Starting at line 445 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += oneParam.name;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+		if (params.size() > 0) {
+=====================================================================
+Found a 11 line (43 tokens) duplication in the following files: 
+Starting at line 216 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 87 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			String s = itr.next().value;
+			res += s;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+
+		// if the function has a return value, add it
+		if (returnValue.compareTo("void") != 0) {
+=====================================================================
+Found a 9 line (42 tokens) duplication in the following files: 
+Starting at line 501 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 597 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getExpectAndReturnBodies(boolean useImpl) {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += oneFunc.getExpectAndReturnPrototypeStart(className + "::")
+=====================================================================
+Found a 8 line (41 tokens) duplication in the following files: 
+Starting at line 648 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 728 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			if (oneFunc.returnValue.compareTo("void") != 0) {
+				res += "    " + structName + ".calls[";
+				res += structName + ".expectedCalls].";
+				res += "return_value = to_return;\n";
+			}
+			
+			res += "    " + structName + ".calls[";
+			res += structName + ".expectedCalls].check_params = 0;\n";
+=====================================================================
+Found a 9 line (41 tokens) duplication in the following files: 
+Starting at line 597 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 708 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getReturnBodies() {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += oneFunc.getReturnPrototypeStart(className + "::") + "\n{\n";
+=====================================================================
+Found a 9 line (41 tokens) duplication in the following files: 
+Starting at line 574 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 684 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getUseImplBodies() {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += "void " + className + "::" + oneFunc.functionName
+=====================================================================
+Found a 8 line (41 tokens) duplication in the following files: 
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += oneParam.name;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+=====================================================================
+Found a 8 line (41 tokens) duplication in the following files: 
+Starting at line 216 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 50 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			String s = itr.next().value;
+			res += s;
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+=====================================================================
+Found a 8 line (41 tokens) duplication in the following files: 
+Starting at line 408 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 244 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		for (CFunction oneFunc : functions) {
+
+			// typedef to record a function call
+			res += "typedef struct\n{\n";
+
+			Iterator<CParameter> itr = oneFunc.params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+=====================================================================
+Found a 9 line (40 tokens) duplication in the following files: 
+Starting at line 574 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 708 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getReturnBodies() {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += oneFunc.getReturnPrototypeStart(className + "::") + "\n{\n";
+=====================================================================
+Found a 8 line (39 tokens) duplication in the following files: 
+Starting at line 204 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 517 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (returnValue.compareTo("void") != 0) {
+			res += "    " + structName + ".calls[";
+			res += structName + ".expectedCalls].";
+			res += "return_value = to_return;\n";
+		}
+
+		res += "    " + structName + ".calls[";
+		res += structName + ".expectedCalls].check_params = 0;\n";
+=====================================================================
+Found a 9 line (39 tokens) duplication in the following files: 
+Starting at line 574 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 597 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+	public String getExpectAndReturnBodies(boolean useImpl) {
+		String myClassName = className.replace(':', '_');
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += oneFunc.getExpectAndReturnPrototypeStart(className + "::")
+=====================================================================
+Found a 8 line (37 tokens) duplication in the following files: 
+Starting at line 648 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 517 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (returnValue.compareTo("void") != 0) {
+			res += "    " + structName + ".calls[";
+			res += structName + ".expectedCalls].";
+			res += "return_value = to_return;\n";
+		}
+
+		res += "    " + structName + ".calls[";
+		res += structName + ".expectedCalls].check_params = 0;\n";
+=====================================================================
+Found a 9 line (37 tokens) duplication in the following files: 
+Starting at line 273 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 326 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			out.println("/* OPMOCK GENERATED CODE - DO NOT MODIFY */\n");
+
+			// mock definitions
+			out.print("#ifndef " + guard + "\n");
+			out.print("#define " + guard + "\n\n");
+
+			out.print("#include \"" + header + "\"\n\n");
+
+			out.print("#define MAX_FUNC_CALL 100\n\n");
+=====================================================================
+Found a 8 line (36 tokens) duplication in the following files: 
+Starting at line 503 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 534 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += "void ";
+			res += className + "::" + oneFunc.functionName;
+=====================================================================
+Found a 9 line (35 tokens) duplication in the following files: 
+Starting at line 424 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 255 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+					res += "    " + oneParam.value + ";\n";
+				}
+			}
+			// add the return value storage if it's not void
+			if (oneFunc.returnValue.compareTo("void") != 0) {
+				res += "    " + oneFunc.returnValue + " return_value;\n";
+			}
+			res += "    char check_params;\n";
+			res += "} " + myClassName + "_" + oneFunc.functionName
+=====================================================================
+Found a 11 line (34 tokens) duplication in the following files: 
+Starting at line 362 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 308 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		res += functionName + ", returning random value.\\n\");\n";
+		if (isVoid == false) {
+			res += "        return default_res;\n";
+		} else {
+			res += "        return;\n";
+		}
+		res += "    }\n\n";
+
+		// return value
+		if (isVoid == false) {
+			res += "    " + returnValue + " actual_res = " + structName
+=====================================================================
+Found a 11 line (34 tokens) duplication in the following files: 
+Starting at line 327 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 275 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (useImpl) {
+			res += "    if (" + structName + ".useRealImpl != 0)\n";
+			res += "    {\n";
+
+			if (isVoid == false) {
+				res += "        return ";
+			} else {
+				res += "        ";
+			}
+
+			res += "opmock_" + functionName + " (";
+=====================================================================
+Found a 12 line (34 tokens) duplication in the following files: 
+Starting at line 298 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 393 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			out.println("#endif");
+
+			out.println("#endif\n");
+			out.close();
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	private static String buildStructs(List<CFunction> functions) {
+=====================================================================
+Found a 4 line (32 tokens) duplication in the following files: 
+Starting at line 445 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 639 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			Iterator<CParameter> itr = oneFunc.params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+				res += "    " + structName + ".calls[";
+=====================================================================
+Found a 8 line (32 tokens) duplication in the following files: 
+Starting at line 136 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 198 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+						for (Element attributeElmnt : attributelistLst) {
+
+							String attrName = attributeElmnt
+									.getAttribute("name");
+							String attrValue = attributeElmnt
+									.getAttribute("value");
+
+							if (attrName.compareTo("name") == 0) {
+=====================================================================
+Found a 10 line (31 tokens) duplication in the following files: 
+Starting at line 129 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 256 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+			if (itr.hasNext()) {
+				res += ", ";
+			}
+		}
+		if (params.size() > 0) {
+			res += ", ";
+		}
+
+		// number of calls
+		res += structName + ".actualCalls);\n";
+=====================================================================
+Found a 3 line (30 tokens) duplication in the following files: 
+Starting at line 249 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 639 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			Iterator<CParameter> itr = oneFunc.params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+=====================================================================
+Found a 8 line (30 tokens) duplication in the following files: 
+Starting at line 146 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 153 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			res += "    static " + oneFunction.getCppExpectAndReturnPrototype();
+		}
+		if (functions.size() > 0)
+			res += "\n";
+
+		// return operations
+		for (CFunction oneFunction : functions) {
+			res += "    static " + oneFunction.getCppReturnPrototype();
+=====================================================================
+Found a 3 line (30 tokens) duplication in the following files: 
+Starting at line 413 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 445 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		Iterator<CParameter> itr = oneFunc.params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+=====================================================================
+Found a 9 line (29 tokens) duplication in the following files: 
+Starting at line 373 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 318 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+			res += "    " + returnValue + " actual_res = " + structName
+					+ ".calls[0].return_value;\n";
+		}
+		res += "    " + structName + ".actualCalls++;\n\n";
+
+		res += "    " + "if (" + structName + ".calls[0].check_params == 1)\n";
+		res += "    {\n";
+		// check parameters if there are some
+		itr = params.iterator();
+=====================================================================
+Found a 8 line (29 tokens) duplication in the following files: 
+Starting at line 139 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 146 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			res += "    static " + oneFunction.getCppVerifyPrototype();
+		}
+		if (functions.size() > 0)
+			res += "\n";
+
+		// expect and return operations
+		for (CFunction oneFunction : functions) {
+			res += "    static " + oneFunction.getCppExpectAndReturnPrototype();
+=====================================================================
+Found a 7 line (29 tokens) duplication in the following files: 
+Starting at line 267 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 320 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+		guard = guard.toUpperCase();
+
+		try {
+			PrintWriter out = new PrintWriter(new BufferedWriter(
+					new FileWriter(output)));
+
+			out.println("/* OPMOCK GENERATED CODE - DO NOT MODIFY */\n");
+=====================================================================
+Found a 11 line (29 tokens) duplication in the following files: 
+Starting at line 198 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 249 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+					out.print(oneClass.getUseImplBodies());
+				}
+			}
+
+			out.close();
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+=====================================================================
+Found a 3 line (28 tokens) duplication in the following files: 
+Starting at line 182 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+=====================================================================
+Found a 4 line (28 tokens) duplication in the following files: 
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 381 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		itr = oneFunc.params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += "        if (" + structName + ".calls[0]." + oneParam.name
+=====================================================================
+Found a 7 line (28 tokens) duplication in the following files: 
+Starting at line 110 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 140 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		}
+		if (functions.size() > 0)
+			res += "\n";
+
+		// verify operations
+		for (CFunction oneFunction : functions) {
+			res += "    static " + oneFunction.getCppVerifyPrototype();
+=====================================================================
+Found a 4 line (28 tokens) duplication in the following files: 
+Starting at line 413 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 182 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		Iterator<CParameter> itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			String s = oneParam.value;
+=====================================================================
+Found a 10 line (28 tokens) duplication in the following files: 
+Starting at line 253 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 301 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			out.close();
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+
+	}
+
+	private static void writeMockHeader(List<CFunction> functions,
+=====================================================================
+Found a 9 line (27 tokens) duplication in the following files: 
+Starting at line 253 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 396 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			out.close();
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	private static String buildStructs(List<CFunction> functions) {
+=====================================================================
+Found a 4 line (26 tokens) duplication in the following files: 
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 326 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		itr = params.iterator();
+		while (itr.hasNext()) {
+			CParameter oneParam = itr.next();
+			res += "        if (" + structName + ".calls[0]." + oneParam.name
+=====================================================================
+Found a 7 line (26 tokens) duplication in the following files: 
+Starting at line 534 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 599 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+		String res = "";
+
+		for (CFunction oneFunc : functions) {
+			String structName = myClassName + "_" + oneFunc.functionName
+					+ "_struct_inst";
+
+			res += oneFunc.getExpectAndReturnPrototypeStart(className + "::")
+=====================================================================
+Found a 3 line (26 tokens) duplication in the following files: 
+Starting at line 249 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			itr = oneFunc.params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+=====================================================================
+Found a 4 line (26 tokens) duplication in the following files: 
+Starting at line 421 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 252 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+				if (oneParam.value.indexOf("[") != -1) {
+					res += "    void * " + oneParam.name + ";\n";
+				} else {
+					res += "    " + oneParam.value + ";\n";
+=====================================================================
+Found a 3 line (26 tokens) duplication in the following files: 
+Starting at line 413 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 342 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+			itr = oneFunc.params.iterator();
+			while (itr.hasNext()) {
+				CParameter oneParam = itr.next();
+=====================================================================
+Found a 8 line (26 tokens) duplication in the following files: 
+Starting at line 222 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 269 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+		try {
+			PrintWriter out = new PrintWriter(new BufferedWriter(
+					new FileWriter(output)));
+
+			out.println("/* OPMOCK GENERATED C++ CODE - DO NOT MODIFY */\n");
+
+			// mock definitions
+			out.print("#ifndef " + guard + "\n");
+=====================================================================
+Found a 3 line (26 tokens) duplication in the following files: 
+Starting at line 71 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 77 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			} else if (args[i].compareTo("--use-cpp") == 0) {
+				String useIt = args[i + 1];
+				if (useIt.compareTo("yes") == 0) {
+=====================================================================
+Found a 4 line (25 tokens) duplication in the following files: 
+Starting at line 374 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+Starting at line 395 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		res += "    " + functionName + "_struct_inst.expectedCalls = 0;\n";
+		res += "    " + functionName + "_struct_inst.actualCalls = 0;\n";
+		if (useImpl) {
+			res += "    " + functionName + "_struct_inst.useRealImpl = 1;\n";
+=====================================================================
+Found a 7 line (25 tokens) duplication in the following files: 
+Starting at line 306 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 231 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CFunction.java
+
+		if (returnValue.compareTo("void") == 0) {
+			isVoid = true;
+		}
+
+		// return value if function not void
+		if (isVoid == false) {
+			res += "    " + returnValue + " default_res = " + structName
+=====================================================================
+Found a 8 line (25 tokens) duplication in the following files: 
+Starting at line 131 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+Starting at line 139 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/CppClass.java
+
+					+ oneFunction.getCppCallbackPrototype(myClassName, true);
+		}
+		if (functions.size() > 0)
+			res += "\n";
+
+		// verify operations
+		for (CFunction oneFunction : functions) {
+			res += "    static " + oneFunction.getCppVerifyPrototype();
+=====================================================================
+Found a 8 line (25 tokens) duplication in the following files: 
+Starting at line 202 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+Starting at line 301 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/Main.java
+
+			out.close();
+
+		} catch (IOException e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+
+	}
+=====================================================================
+Found a 5 line (25 tokens) duplication in the following files: 
+Starting at line 43 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+Starting at line 407 of /home/pascal/dev/workspace_galileo/opmock/src/main/java/org/opmock/XmlLoader.java
+
+	public List<CppClass> processFileForCpp(String input) {
+
+		Document doc = loadSwigXml(input);
+		Element top = (Element) doc.getFirstChild();
+		List<CppClass> classes = new ArrayList<CppClass>();
