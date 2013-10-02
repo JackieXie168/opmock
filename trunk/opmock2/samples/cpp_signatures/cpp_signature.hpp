@@ -314,10 +314,18 @@ public:
     int useLocalStruct(LocalStruct *p);
     int useExternScopedStruct(Yala p1);
 
+	//test bool type, both in return value and parameter
+	// as it seams Clang converts them to _Bool
+	bool funcReturnsBool();
+	void functionTakesBool(bool foo);
+
 private:
     //a private operation. Should I mock private operations?
     const char *privateReturnsConst ( int i );
 };
+
+bool freeFuncReturnBool();
+void freeFuncTakesBool(bool bar);
 
 
 #endif

@@ -1088,6 +1088,10 @@ void paramAsString ( clang::ParmVarDecl *pdecl, std::string &prefix, std::string
         prefix = sparmType;
         suffix = "";
     }
+    //FIXME there are 2 or 3 different ways to extract parameters in this code
+    // should refactor to use a single path
+    replaceAll ( prefix, "_Bool", "bool" );
+    replaceAll ( suffix, "_Bool", "bool" );
 }
 
 void returnValueLR ( clang::FunctionDecl *fdecl,
@@ -1111,6 +1115,9 @@ void returnValueLR ( clang::FunctionDecl *fdecl,
         prefix = canonParmType;
         suffix = "";
     }
+    // make sure we don't return a _Bool type
+    replaceAll ( prefix, "_Bool", "bool" );
+    replaceAll ( suffix, "_Bool", "bool" );
 }
 
 bool returnValueAsAString ( clang::FunctionDecl *fdecl, std::string &retPrefix,
@@ -2051,6 +2058,8 @@ std::string getStructReturnType ( clang::FunctionDecl *fdecl, bool &isReference 
         std::string parmString = qtype.getAsString();
         replaceAll ( parmString, "const", "" );
         replaceAll ( parmString, "volatile", "" );
+	//clang replaces bool by _Bool for some reason - so let's turn it back to bool
+        replaceAll ( parmString, "_Bool", "bool" );
         result = parmString;
     }
     return result;
@@ -2102,6 +2111,7 @@ OpParameter *splitParameter ( clang::ParmVarDecl *pdecl,
     replaceAll ( parmString2, "class ", "" );
     replaceAll ( parmString2, "const", "" );
     replaceAll ( parmString2, "volatile", "" );
+    replaceAll ( parmString2, "_Bool", "bool" );
 
     //std::cout << "type parametre " << parmString2 << std::endl;
 
