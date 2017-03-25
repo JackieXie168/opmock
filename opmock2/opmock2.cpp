@@ -1,4 +1,4 @@
-/* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
+//* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
 /*
  * opmock2.cpp
  * Copyright (C) Pascal Ognibene 2012-2013 <pognibene@gmail.com>
@@ -204,14 +204,14 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
             clang::dyn_cast<clang::CXXRecordDecl > ( d );
 
         clang::SourceLocation loc = d->getLocation();
-        if ( ast->getSourceManager().isFromMainFile ( loc ) )
+        if ( ast->getSourceManager().isWrittenInMainFile ( loc ) )
         {
             recordList.push_back ( rdecl );
         }
         else
         {
             clang::SourceLocation loc2 = ast->getSourceManager().getExpansionLoc ( loc );
-            if ( ast->getSourceManager().isFromMainFile ( loc2 ) )
+            if ( ast->getSourceManager().isWrittenInMainFile ( loc2 ) )
             {
                 recordList.push_back ( rdecl );
             }
@@ -223,14 +223,14 @@ bool MyRecursiveASTVisitorCpp::VisitDecl ( clang::Decl *d )
             clang::dyn_cast<clang::FunctionDecl > ( d );
 
         clang::SourceLocation loc = d->getLocation();
-        if ( ast->getSourceManager().isFromMainFile ( loc ) )
+        if ( ast->getSourceManager().isWrittenInMainFile ( loc ) )
         {
             functionList.push_back ( fdecl );
         }
         else
         {
             clang::SourceLocation loc2 = ast->getSourceManager().getExpansionLoc ( loc );
-            if ( ast->getSourceManager().isFromMainFile ( loc2 ) )
+            if ( ast->getSourceManager().isWrittenInMainFile ( loc2 ) )
             {
                 functionList.push_back ( fdecl );
             }
@@ -309,7 +309,8 @@ int main ( int argc, char **argv )
     }
 
     std::vector<std::string> newOptions;//miscellanous options
-     if(useCpp)
+	newOptions.push_back(std::string("-Wno-pragma-once-outside-header"));
+    if(useCpp)
     {
         newOptions.push_back(std::string("-x"));
         newOptions.push_back(std::string("c++"));
@@ -319,7 +320,6 @@ int main ( int argc, char **argv )
      {
          newOptions.push_back("-std=" + langStandard);
      }
-
 
     // first parameter is the header file to parse/compile
     clangParamsList.insert ( clangParamsList.begin(), inputFile.c_str() );
@@ -365,7 +365,8 @@ int main ( int argc, char **argv )
     clang::CompilerInvocation *CI = new clang::CompilerInvocation();
     clang::CompilerInvocation::CreateFromArgs ( *CI, Args.begin(), Args.end(), *DiagsRef );
 
-    AST = clang::ASTUnit::LoadFromCompilerInvocation ( CI, DiagsRef );
+    auto PCH = std::make_shared<clang::PCHContainerOperations>();
+    AST = clang::ASTUnit::LoadFromCompilerInvocationAction ( CI, PCH, DiagsRef );
 
     MyRecursiveASTVisitorCpp myvis;
     myvis.ast = &AST->getASTContext();
@@ -556,7 +557,7 @@ void writeFilesForC ( std::vector<clang::FunctionDecl *> functionList,
             std::string retPrefix, retSuffix;
             std::string canonRetPrefix, canonRetSuffix;
             bool isFuncPtr = returnValueAsAString ( fdecl, retPrefix, retSuffix, false );
-            bool isCanonFuncPtr = returnValueAsAString ( fdecl, canonRetPrefix, canonRetSuffix, true );
+            /* bool isCanonFuncPtr = */ returnValueAsAString ( fdecl, canonRetPrefix, canonRetSuffix, true );
             bool isVoid = isFunctionVoid ( fdecl );
 
             // parameters and matchers
@@ -1013,8 +1014,6 @@ void cleanPath ( std::string &str )
 bool isParmArray ( clang::ParmVarDecl *pdecl )
 {
     clang::QualType parmType = pdecl->getOriginalType();
-    clang::QualType canonParmtype = parmType.getCanonicalType();
-
     const clang::Type *realType = parmType.getTypePtrOrNull();
 
     if ( realType->isArrayType() )
@@ -1027,8 +1026,6 @@ bool isParmArray ( clang::ParmVarDecl *pdecl )
 bool isParmPointer ( clang::ParmVarDecl *pdecl )
 {
     clang::QualType parmType = pdecl->getOriginalType();
-    clang::QualType canonParmtype = parmType.getCanonicalType();
-
     const clang::Type *realType = parmType.getTypePtrOrNull();
 
     if ( realType->isPointerType() )
@@ -1098,7 +1095,7 @@ void returnValueLR ( clang::FunctionDecl *fdecl,
                      std::string &prefix,
                      std::string &suffix )
 {
-    clang::QualType retqualType = fdecl->getResultType();
+    clang::QualType retqualType = fdecl->getReturnType();
     clang::QualType qtype = retqualType.getCanonicalType();
     std::string canonParmType = qtype.getAsString();
 
@@ -1124,7 +1121,8 @@ bool returnValueAsAString ( clang::FunctionDecl *fdecl, std::string &retPrefix,
                             std::string &retSuffix, bool useCanonical )
 {
     bool result = false;
-    clang::QualType retqualType = fdecl->getResultType();
+
+    clang::QualType retqualType = fdecl->getReturnType();
     std::string sparmType = retqualType.getAsString();
 
     if ( useCanonical )
@@ -1166,7 +1164,8 @@ void replaceAll ( std::string &str, const std::string &from, const std::string &
 
 bool isFunctionVoid ( clang::FunctionDecl *f )
 {
-    clang::QualType retType = f->getResultType();
+    clang::QualType retType = f->getReturnType();
+
     const clang::Type *realType = retType.getTypePtrOrNull();
     if ( realType->isVoidType() )
     {
@@ -1390,7 +1389,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             std::string ns_right;
             if ( one_func->ns.size() > 0 )
             {
-                for ( int i = 0; i < one_func->ns.size(); i++ )
+                for ( unsigned i = 0; i < one_func->ns.size(); i++ )
                 {
                     ns_left += "namespace " + one_func->ns[i] + " { ";
                     ns_right += " }";
@@ -1399,7 +1398,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             // expect and return overloads can be told appart with their parameters
             hout << ns_left << "void" << " " << one_func->name << "_ExpectAndReturn (";
             // parameters
-            for ( int i = 0; i < one_func->parameters.size(); i++ )
+            for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
             {
                 OpParameter *one_param = one_func->parameters[i];
                 hout << one_param->orgTypeL << " " << one_param->name
@@ -1424,7 +1423,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             // matchers
             if ( one_func->parameters.size() > 0 )
             {
-                for ( int i = 0; i < one_func->parameters.size(); i++ )
+                for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
                 {
                     OpParameter *one_param = one_func->parameters[i];
                     hout << ", OPMOCK_MATCHER match_" << one_param->name;
@@ -1453,7 +1452,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             }
             hout << "_CALLBACK)(";
             // parameters for the typedef
-            for ( int i = 0; i < one_func->parameters.size(); i++ )
+            for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
             {
                 OpParameter *one_param = one_func->parameters[i];
                 hout << one_param->orgTypeL << " " << one_param->name
@@ -1505,7 +1504,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             std::string ns_right;
             if ( one_rec->ns.size() > 0 )
             {
-                for ( int i = 0; i < one_rec->ns.size(); i++ )
+                for ( unsigned i = 0; i < one_rec->ns.size(); i++ )
                 {
                     ns_left += "namespace " + one_rec->ns[i] + " { ";
                     ns_right += " }";
@@ -1537,7 +1536,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             std::string nsf_right;
             if ( one_rec->ns.size() > 0 )
             {
-                for ( int i = 0; i < one_rec->ns.size(); i++ )
+                for ( unsigned i = 0; i < one_rec->ns.size(); i++ )
                 {
                     nsf_left += "namespace " + one_rec->ns[i] + " { ";
                     nsf_right += " }";
@@ -1574,7 +1573,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     std::string ns_right;
                     if ( one_func->ns.size() > 0 )
                     {
-                        for ( int i = 0; i < one_func->ns.size(); i++ )
+                        for ( unsigned i = 0; i < one_func->ns.size(); i++ )
                         {
                             ns_left += "namespace " + one_func->ns[i] + " { ";
                             ns_right += " }";
@@ -1594,7 +1593,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     }
                     hout << "_CALLBACK)(";
                     // parameters for the typedef
-                    for ( int i = 0; i < one_func->parameters.size(); i++ )
+                    for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
                     {
                         OpParameter *one_param = one_func->parameters[i];
                         hout << one_param->orgTypeL << " " << one_param->name
@@ -1628,7 +1627,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                         }
                         hout << "_INST_CALLBACK)(";
                         // parameters for the typedef
-                        for ( int i = 0; i < one_func->parameters.size(); i++ )
+                        for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
                         {
                             OpParameter *one_param = one_func->parameters[i];
                             hout << one_param->orgTypeL << " " << one_param->name
@@ -1656,7 +1655,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
             std::string ns_right;
             if ( one_rec->ns.size() > 0 )
             {
-                for ( int i = 0; i < one_rec->ns.size(); i++ )
+                for ( unsigned i = 0; i < one_rec->ns.size(); i++ )
                 {
                     ns_left += "namespace " + one_rec->ns[i] + " {\n";
                     ns_right += "}\n";
@@ -1731,7 +1730,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     //TODO factoriser!
                     hout << "    static void " << one_func->name << "_ExpectAndReturn(";
                     // parameters
-                    for ( int i = 0; i < one_func->parameters.size(); i++ )
+                    for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
                     {
                         OpParameter *one_param = one_func->parameters[i];
                         hout << one_param->orgTypeL << " " << one_param->name
@@ -1756,7 +1755,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                     // matchers
                     if ( one_func->parameters.size() > 0 )
                     {
-                        for ( int i = 0; i < one_func->parameters.size(); i++ )
+                        for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
                         {
                             OpParameter *one_param = one_func->parameters[i];
                             hout << ", OPMOCK_MATCHER match_" << one_param->name;
@@ -1847,7 +1846,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                 std::string classPrefix = "    ";
                 if ( one_rec->ns.size() > 0 )
                 {
-                    for ( int i = 0; i < one_rec->ns.size(); i++ )
+                    for ( unsigned i = 0; i < one_rec->ns.size(); i++ )
                     {
                         classPrefix += one_rec->ns[i];
                         classPrefix += "::";
@@ -1887,7 +1886,7 @@ void writeFilesForCpp ( std::vector<clang::FunctionDecl *> functionList,
                 std::string classPrefix = "    ";
                 if ( one_rec->ns.size() > 0 )
                 {
-                    for ( int i = 0; i < one_rec->ns.size(); i++ )
+                    for ( unsigned i = 0; i < one_rec->ns.size(); i++ )
                     {
                         classPrefix += one_rec->ns[i];
                         classPrefix += "::";
@@ -2036,7 +2035,7 @@ std::string getStructReturnType ( clang::FunctionDecl *fdecl, bool &isReference 
     std::string result;
     isReference = false;
 
-    clang::QualType retType = fdecl->getResultType();
+    clang::QualType retType = fdecl->getReturnType();
     clang::QualType qtype = retType.getCanonicalType();
     const clang::Type *realType = qtype.getTypePtrOrNull();
 
@@ -2272,14 +2271,14 @@ void writeFunctionStruct ( OpFunction *one_func, OpRecord *one_rec, std::ofstrea
     out << "typedef struct\n{\n";
 
     // struct attributes
-    for ( int i = 0; i < one_func->parameters.size(); i++ )
+    for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
     {
         OpParameter *one_param = one_func->parameters[i];
         out << "    " << one_param->castTypeL << " " << one_param->name
             << " " << one_param->castTypeR << ";\n";
     }
     //matchers
-    for ( int i = 0; i < one_func->parameters.size(); i++ )
+    for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
     {
         OpParameter *one_param = one_func->parameters[i];
         out << "    OPMOCK_MATCHER match_" << one_param->name << ";\n";
@@ -2387,7 +2386,7 @@ void writeFunctionBody ( OpFunction *one_func, OpRecord *one_rec, std::ofstream 
     if ( one_func->parameters.size() > 0 )
     {
         out << "    if (" << struct_inst << ".calls[0].check_params == 1) {\n";
-        for ( int i = 0; i < one_func->parameters.size(); i++ )
+        for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
         {
             OpParameter *one_param = one_func->parameters[i];
             out << "        if (" << struct_inst << ".calls[0].match_"
@@ -2457,7 +2456,7 @@ void writeFunctionMockResetBody ( OpFunction *one_func, OpRecord *one_rec, std::
 
     if ( one_func->ns.size() > 0 )
     {
-        for ( int i = 0; i < one_func->ns.size(); i++ )
+        for ( unsigned i = 0; i < one_func->ns.size(); i++ )
         {
             structName += one_func->ns[i] + "__";
         }
@@ -2503,7 +2502,7 @@ void writeFunctionMockWithCallbackBody ( OpFunction *one_func, OpRecord *one_rec
 
     if ( one_func->ns.size() > 0 )
     {
-        for ( int i = 0; i < one_func->ns.size(); i++ )
+        for ( unsigned i = 0; i < one_func->ns.size(); i++ )
         {
             structName += one_func->ns[i] + "__";
         }
@@ -2551,7 +2550,7 @@ void writeFunctionMockWithInstanceCallbackBody ( OpFunction *one_func, OpRecord 
 
     if ( one_func->ns.size() > 0 )
     {
-        for ( int i = 0; i < one_func->ns.size(); i++ )
+        for ( unsigned i = 0; i < one_func->ns.size(); i++ )
         {
             structName += one_func->ns[i] + "__";
         }
@@ -2593,7 +2592,7 @@ void writeFunctionVerifyMockBody ( OpFunction *one_func, OpRecord *one_rec, std:
 
     if ( one_func->ns.size() > 0 )
     {
-        for ( int i = 0; i < one_func->ns.size(); i++ )
+        for ( unsigned i = 0; i < one_func->ns.size(); i++ )
         {
             structName += one_func->ns[i] + "__";
         }
@@ -2644,7 +2643,7 @@ void writeFunctionExpectAndReturnBody ( OpFunction *one_func, OpRecord *one_rec,
     if ( one_func->parameters.size() > 0 )
     {
         //TODO factoriser cette fonction
-        for ( int i = 0; i < one_func->parameters.size(); i++ )
+        for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
         {
             OpParameter *one_param = one_func->parameters[i];
             out << ", OPMOCK_MATCHER match_" << one_param->name;
@@ -2709,7 +2708,7 @@ void writeFunctionExpectAndReturnBody ( OpFunction *one_func, OpRecord *one_rec,
         << one_func->buildSignature ( one_rec ) << "\" );\n";
 
     // record parameters
-    for ( int i = 0; i < one_func->parameters.size(); i++ )
+    for ( unsigned i = 0; i < one_func->parameters.size(); i++ )
     {
         OpParameter *one_param = one_func->parameters[i];
         out << "    " << structi << ".calls["
@@ -2753,7 +2752,7 @@ std::string OpFunction::getfixedScopedOverloadedName()
     std::string fixedName;
     if ( ns.size() > 0 )
     {
-        for ( int i = 0; i < ns.size(); i++ )
+        for ( unsigned i = 0; i < ns.size(); i++ )
         {
             fixedName += ns[i] + "__";
         }
@@ -2772,7 +2771,7 @@ std::string OpFunction::getfixedScopedOverloadedName()
 std::string OpFunction::buildParameters()
 {
     std::string result = "";
-    for ( int i = 0; i < parameters.size(); i++ )
+    for ( unsigned i = 0; i < parameters.size(); i++ )
     {
         OpParameter *one_param = parameters[i];
         result += one_param->orgTypeL + " " + one_param->name;
@@ -2791,7 +2790,7 @@ std::string OpFunction::buildParameters()
 std::string OpFunction::buildParameterNames()
 {
     std::string result;
-    for ( int i = 0; i < parameters.size(); i++ )
+    for ( unsigned i = 0; i < parameters.size(); i++ )
     {
         OpParameter *one_param = parameters[i];
         result += one_param->name;

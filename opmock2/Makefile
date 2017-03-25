@@ -1,36 +1,35 @@
-# to compile with LLVM/CLANG 3.2
-# llvm-config must be in your PATH
-LLVMCOMPONENTS := cppbackend
+# Put llvm-config in you path or add full path below (trailing / required)
+LLVM_BIN := 
+LLVM_CONFIG_CMD := $(LLVM_BIN)llvm-config
+
 RTTIFLAG := -fno-rtti
-#CXXFLAGS := $(shell ~/dev/llvm31_install/bin/llvm-config --cxxflags) $(RTTIFLAG) -static -g
-#LLVMLDFLAGS := $(shell ~/dev/llvm31_install/bin/llvm-config --ldflags --libs $(LLVMCOMPONENTS)) -static
 
 #this gets hairy : need to split calls to llvm-config otherwise linking fails
 #need also to restrict the number of libraries : the executable is way too large
-CXXFLAGS := $(shell ~/dev/llvm32_install/bin/llvm-config --cxxflags) $(RTTIFLAG) -static -g
-LLVMLDFLAGS := $(shell ~/dev/llvm32_install/bin/llvm-config --libs all) $(shell ~/dev/llvm32_install/bin/llvm-config --ldflags) -static
-
-
-#CXXFLAGS := $(shell llvm-config-3.1 --cxxflags) $(RTTIFLAG) -static -g
-#LLVMLDFLAGS := $(shell llvm-config-3.1 --ldflags --libs $(LLVMCOMPONENTS)) -static
+CXXFLAGS := $(shell $(LLVM_CONFIG_CMD) --cxxflags) $(RTTIFLAG) -static
+LDFLAGS := $(shell $(LLVM_CONFIG_CMD) --ldflags) -static
+LLVMLIBS = $(shell $(LLVM_CONFIG_CMD) --libs all) $(shell $(LLVM_CONFIG_CMD) --system-libs)
 
 SOURCES = opmock2.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 EXES = $(OBJECTS:.o=)
 
-
-#use LLVMLDFLAGS twice to avoid ld stripping unused symbols too early
 #link order found with nm and trial/error!
-#note that there's kind of a circular dependency on libclangAST
-CLANGLIBS = -lclangAST -lclangBasic -lclangFrontend -lclangParse -lclangLex -lclangSema -lclangSerialization \
-			-lclangDriver -lclangBasic -lclangAST -lclangEdit -lclangAnalysis \
-$(LLVMLDFLAGS)
+CLANGLIBS = -lclangFrontend -lclangParse -lclangSema -lclangSerialization -lclangDriver \
+	    -lclangAST -lclangBasic -lclangAnalysis -lclangEdit -lclangLex
+
+debug: CXXFLAGS += -g
+debug: all
+
+release: CXXFLAGS += -ffunction-sections -fdata-sections
+release: LDFLAGS += -gc-sections -s
+release: all
 
 all: $(OBJECTS) $(EXES)
 
 %: %.o
-	$(CXX) -o $@ $< $(LLVMLDFLAGS) $(CLANGLIBS) 
+	$(CXX) -o $@ $< $(LDFLAGS) $(CLANGLIBS) $(LLVMLIBS)
 
 clean:
 	-rm -f $(EXES) $(OBJECTS) *~
